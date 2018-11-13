@@ -39,7 +39,7 @@
     <dependencySet>
       <useProjectArtifact>false</useProjectArtifact>
       <includes>
-        <include>org.apache.jena:jena-fuseki-server:jar</include>
+        <include>org.apache.jena:jena-fuseki-fulljar:jar</include>
       </includes>
       <outputFileNameMapping>fuseki-server.jar</outputFileNameMapping>
 
@@ -86,14 +86,16 @@
       <includes>
         <include>log4j.properties</include>
         <include>fuseki</include>
+        <include>fuseki.service</include>
         <include>fuseki-server</include>
+        <include>fuseki-backup</include>
         <include>fuseki-server.bat</include>
         <include>bin/*</include>
       </includes>
     </fileSet>
 
     <fileSet>
-      <directory>../jena-fuseki-core/src/main/webapp</directory>
+      <directory>../jena-fuseki-webapp/src/main/webapp</directory>
       <outputDirectory>webapp</outputDirectory>
     </fileSet>
 

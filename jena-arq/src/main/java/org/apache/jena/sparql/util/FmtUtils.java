@@ -49,7 +49,7 @@ public class FmtUtils
 {
     // OLD CODE - being replaced by riot.NodeFmtLib
     
-    // Consider withdrawing non-serialzation context forms of this.
+    // Consider withdrawing non-serialization context forms of this.
     // Or a temporary SerialzationContext does not abbreviate bNodes.
     static final String indentPrefix = "  " ;
     public static boolean multiLineExpr = false ;
@@ -462,7 +462,7 @@ public class FmtUtils
     {
         if ( hasScheme(uri) )
             return uri ;
-        IRI baseIRI = IRIResolver.iriFactory.construct(base) ;
+        IRI baseIRI = IRIResolver.iriFactory().construct(base) ;
         IRI rel = baseIRI.relativize(uri, relFlags) ;
         String r = rel.toString() ;
         return r ;
@@ -535,6 +535,7 @@ public class FmtUtils
     {
         if ( Character.isLetterOrDigit(ch) ) return true ;
         if ( ch == '.' )    return true ;
+        if ( ch == ':' )    return true ;
         if ( ch == '-' )    return true ;
         if ( ch == '_' )    return true ;
         return false ;

@@ -18,18 +18,17 @@
 
 package org.apache.jena.query.spatial;
 
-import com.spatial4j.core.context.SpatialContext ;
-
 import org.apache.jena.query.spatial.assembler.SpatialAssembler ;
 import org.apache.jena.query.spatial.pfunction.library.* ;
 import org.apache.jena.sparql.SystemARQ ;
-import org.apache.jena.sparql.lib.Metadata ;
 import org.apache.jena.sparql.mgt.SystemInfo ;
 import org.apache.jena.sparql.pfunction.PropertyFunction ;
 import org.apache.jena.sparql.pfunction.PropertyFunctionFactory ;
 import org.apache.jena.sparql.pfunction.PropertyFunctionRegistry ;
 import org.apache.jena.sparql.util.Symbol ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
+import org.apache.jena.util.Metadata;
+import org.locationtech.spatial4j.context.SpatialContext ;
 
 public class SpatialQuery
 {
@@ -51,7 +50,7 @@ public class SpatialQuery
     public static SpatialContext ctx = SpatialContext.GEO;
     
     // an optional feature for WKT literals, loaded when necessary, but not required
-    public static final String JTS_SPATIAL_CONTEXT_FACTORY_CLASS = "com.spatial4j.core.context.jts.JtsSpatialContextFactory"; 
+    public static final String JTS_SPATIAL_CONTEXT_FACTORY_CLASS = "org.locationtech.spatial4j.context.jts.JtsSpatialContextFactory"; 
     
     static { JenaSystem.init(); }
     

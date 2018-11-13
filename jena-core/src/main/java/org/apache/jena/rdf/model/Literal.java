@@ -32,8 +32,8 @@ import org.apache.jena.datatypes.RDFDatatype ;
  * value returned. If the coercion fails then a runtime DatatypeFormatException is 
  * thrown.</p>
  * 
- * <p>In the case of plain literals then the primitve accessor methods duplicate
- * the behvaiour of jena1. The literal is internally stored in lexical form but
+ * <p>In the case of plain literals then the primitive accessor methods duplicate
+ * the behaviour of jena1. The literal is internally stored in lexical form but
  * the accessor methods such as getInt will attempt to parse the lexical form
  * and if successful will return the primitive value.</p>
  * 
@@ -59,7 +59,10 @@ public interface Literal extends RDFNode {
      * this will return the literal string. In the case of typed literals
      * it will return a java object representing the value. In the case
      * of typed literals representing a java primitive then the appropriate
-     * java wrapper class (Integer etc) will be returned.
+     * java wrapper class (Integer etc) will be returned. A Long value
+     * may be converted to its equivalent Integer value if there is no
+     * loss of precision (i.e. if the value is within the Integer minimum
+     * and maximum values).
      */
     public Object getValue();
     

@@ -1,5 +1,13 @@
 # Maven and build files
 target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/
 
 # Eclipse
 .classpath
@@ -7,6 +15,8 @@ target/
 .settings
 .recommenders
 .metadata
+maven-eclipse.xml
+.externalToolBuilders/
 
 # Idea IntelliJ
 *.ipr
@@ -25,7 +35,6 @@ hs_err_*
 *.jar
 
 # Backups
-pom.xml.backup
 *~
 .#*
 \#*

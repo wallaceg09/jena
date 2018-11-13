@@ -24,6 +24,7 @@ import java.util.Map ;
 import java.util.Set ;
 
 import org.apache.jena.query.ReadWrite ;
+import org.apache.jena.query.TxnType;
 import org.apache.jena.sparql.mgt.ARQMgt ;
 import org.apache.jena.tdb.base.file.ChannelManager ;
 import org.apache.jena.tdb.base.file.Location ;
@@ -31,6 +32,7 @@ import org.apache.jena.tdb.base.file.LocationLock ;
 import org.apache.jena.tdb.setup.DatasetBuilderStd ;
 import org.apache.jena.tdb.setup.StoreParams ;
 import org.apache.jena.tdb.store.DatasetGraphTDB ;
+import org.apache.jena.tdb.sys.ProcessUtils;
 import org.apache.jena.tdb.sys.SystemTDB ;
 import org.apache.jena.tdb.transaction.* ;
 
@@ -88,15 +90,31 @@ public class StoreConnection
     }
 
     /**
-     * Begin a transaction. Terminate a write transaction with
-     * {@link Transaction#commit()} or {@link Transaction#abort()}. Terminate a
-     * write transaction with {@link Transaction#close()}.
+     * @deprecated Use {@link #begin(TxnType)}
      */
+    @Deprecated
     public DatasetGraphTxn begin(ReadWrite mode) {
+        return begin(TxnType.convert(mode));
+    }
+
+    /**
+     * Begin a transaction. Terminate a write transaction with
+     * {@link Transaction#commit()} or {@link Transaction#abort()}. 
+     * Terminate a write transaction with {@link Transaction#close()}.
+     */
+    public DatasetGraphTxn begin(TxnType mode) {
         checkValid();
         checkTransactional();
         haveUsedInTransaction = true;
-        return transactionManager.begin(mode);
+        return transactionManager.begin(mode, null);
+    }
+
+    /**
+     * @deprecated Use {@link #begin(TxnType, String)}
+     */
+    @Deprecated
+    public DatasetGraphTxn begin(ReadWrite mode, String label) {
+        return begin(TxnType.convert(mode), label);
     }
 
     /**
@@ -104,17 +122,16 @@ public class StoreConnection
      * with {@link Transaction#commit()} or {@link Transaction#abort()}.
      * Terminate a write transaction with {@link Transaction#close()}.
      */
-    public DatasetGraphTxn begin(ReadWrite mode, String label) {
+    public DatasetGraphTxn begin(TxnType mode, String label) {
         checkValid();
         checkTransactional();
         return transactionManager.begin(mode, label);
     }
 
     /**
-     * Testing operation - do not use the base dataset without knowing how the
-     * transaction system uses it. The base dataset may not reflect the true state
-     * if pending commits are queued.
-     * @see #flush
+     * Internal operation - to get a dataset for application use, call a
+     * {@link TDBFactory} function. Do not use the base dataset without knowing how the
+     * transaction system uses it.
      */
     public DatasetGraphTDB getBaseDataset() {
         checkValid();
@@ -180,8 +197,8 @@ public class StoreConnection
     /** Stop managing a location. Use with great care (testing only). */
     public static synchronized void expel(Location location, boolean force) {
         StoreConnection sConn = cache.get(location) ;
-        if (sConn == null) return ;
-        
+        if (sConn == null)
+            return ;
         if (!force && sConn.transactionManager.activeTransactions()) 
             throw new TDBTransactionException("Can't expel: Active transactions for location: " + location) ;
 
@@ -210,9 +227,17 @@ public class StoreConnection
         StoreConnection sConn = cache.get(location) ;
         if (sConn != null) 
             return sConn ;
-        DatasetGraphTDB dsg = DatasetBuilderStd.create(location, params) ;
+        DatasetGraphTDB dsg = build(location, params) ;
         sConn = _makeAndCache(dsg) ;
         return sConn ;
+    }
+    
+    /**
+     * Build storage {@link DatasetGraphTDB}.
+     * This operation is the primitive that creates the storage-level DatasetGraphTDB.
+     */
+    private static DatasetGraphTDB build(Location location, StoreParams params) {
+        return DatasetBuilderStd.create(location, params) ;
     }
 
     /** Make a StoreConnection based on any StoreParams at the location or the system defaults. */
@@ -239,15 +264,20 @@ public class StoreConnection
                 // Obtain the lock ASAP
                 LocationLock lock = location.getLock();
                 if (lock.canLock()) {
-                    if (!lock.canObtain()) 
-                        throw new TDBException("Can't open database at location " + location.getDirectoryPath() + " as it is already locked by the process with PID " + lock.getOwner() + ".  TDB databases do not permit concurrent usage across JVMs so in order to prevent possible data corruption you cannot open this location from the JVM that does not own the lock for the dataset");
+                    if (!lock.canObtain()) {
+                        int here = ProcessUtils.getPid(0);
+                        throw new TDBException("Process ID "+here+" can't open database at location " + location.getDirectoryPath() + " because it is already locked by the process with PID " + lock.getOwner() + ". "+
+                            "TDB databases do not permit concurrent usage across JVMs so in order to prevent possible data corruption you cannot open this location from the JVM that does not own the lock for the dataset");
+                    }
 
                     lock.obtain();
                     // There's an interesting race condition here that two JVMs might write out the lock file one after another without
                     // colliding and causing an IO error in either.  The best way to check for this is simply to check we now own the lock
                     // and if not error
                     if (!lock.isOwned()) {
-                        throw new TDBException("Can't open database at location " + location.getDirectoryPath() + " as it is alread locked by the process with PID " + lock.getOwner() + ".  TDB databases do not permit concurrent usage across JVMs so in order to prevent possible data corruption you cannot open this location from the JVM that does not own the lock for the dataset");
+                        int here = ProcessUtils.getPid(0);
+                        throw new TDBException("Process ID "+here+" failed to open database at location " + location.getDirectoryPath() + " because it is already locked by the process with PID " + lock.getOwner() + ". "+
+                            "TDB databases do not permit concurrent usage across JVMs so in order to prevent possible data corruption you cannot open this location from the JVM that does not own the lock for the dataset");
                     }
                 }
             }

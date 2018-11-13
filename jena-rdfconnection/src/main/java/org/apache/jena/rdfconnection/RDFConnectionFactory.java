@@ -18,8 +18,14 @@
 
 package org.apache.jena.rdfconnection;
 
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.HttpClient;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.jena.query.Dataset;
-import org.apache.jena.system.JenaSystem;
+import org.apache.jena.sys.JenaSystem;
 
 public class RDFConnectionFactory {
     static { JenaSystem.init(); }
@@ -34,14 +40,14 @@ public class RDFConnectionFactory {
      *  <li>SPARQL Graph Store Protocol : "data"
      *  </ul>
      *  These are the default names in <a href="http://jena.apache.org/documentation/fuseki2">Fuseki</a> 
-     *  Other names can be specificied using {@link #connect(String, String, String, String)}
+     *  Other names can be specified using {@link #connect(String, String, String, String)}
      *     
      * @param destination
      * @return RDFConnection
      * @see #connect(String, String, String, String)
      */
     public static RDFConnection connect(String destination) {
-        return new RDFConnectionRemote(destination);
+        return RDFConnectionRemote.create().destination(destination).build();
     }
 
     /** Create a connection specifying the URLs of the service.
@@ -54,9 +60,12 @@ public class RDFConnectionFactory {
     public static RDFConnection connect(String queryServiceEndpoint,
                                         String updateServiceEndpoint,
                                         String graphStoreProtocolEndpoint) {
-        return new RDFConnectionRemote(queryServiceEndpoint, updateServiceEndpoint, graphStoreProtocolEndpoint);
-   }
-
+        return RDFConnectionRemote.create()
+            .queryEndpoint(queryServiceEndpoint)
+            .updateEndpoint(updateServiceEndpoint)
+            .gspEndpoint(graphStoreProtocolEndpoint)
+            .build();
+    }
     
     /** Create a connection to a remote location by URL.
      * This is the URL for the dataset.
@@ -72,8 +81,32 @@ public class RDFConnectionFactory {
                                         String queryServiceEndpoint,
                                         String updateServiceEndpoint,
                                         String graphStoreProtocolEndpoint) {
-        return new RDFConnectionRemote(datasetURL, queryServiceEndpoint, updateServiceEndpoint, graphStoreProtocolEndpoint);
+        return RDFConnectionRemote.create()
+            .destination(datasetURL)
+            .queryEndpoint(queryServiceEndpoint)
+            .updateEndpoint(updateServiceEndpoint)
+            .gspEndpoint(graphStoreProtocolEndpoint)
+            .build();
     }
+    
+    /** Make a remote RDFConnection to the URL, with user and password for the client access using basic auth.
+     *  Use with care.  Basic auth over plain HTTP reveals the password on the network. 
+     * @param URL
+     * @param user
+     * @param password
+     * @return RDFConnection
+     */
+    public static RDFConnection connectPW(String URL, String user, String password) {
+        BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
+        Credentials credentials = new UsernamePasswordCredentials(user, password);
+        credsProvider.setCredentials(AuthScope.ANY, credentials);
+        HttpClient client = HttpClients.custom().setDefaultCredentialsProvider(credsProvider).build();
+        return RDFConnectionRemote.create()
+            .destination(URL)
+            .httpClient(client)
+            .build();
+    }
+
 
     /**
      * Connect to a local (same JVM) dataset.
@@ -109,4 +142,52 @@ public class RDFConnectionFactory {
     public static RDFConnection connect(Dataset dataset, Isolation isolation) {
         return new RDFConnectionLocal(dataset, isolation);
     }
+
+    /** Create a connection to a remote Fuseki server by URL.
+     * This is the URL for the dataset.
+     * <p>
+     * A {@link RDFConnectionFuseki} is an {@link RDFConnection} that:
+     * <ul> 
+     * <li>provides round-trip of blank nodes between this application and the server
+     * <li>uses the more efficient <a href="http://jena.apache.org/documentation/io/rdf-binary.html">RDF Thrift binary</a> format. 
+     * </ul>
+     * 
+     *  This factory call assumes the names of services as:
+     *  <ul>
+     *  <li>SPARQL Query endpoint : "sparql"
+     *  <li>SPARQL Update endpoint : "update"
+     *  <li>SPARQL Graph Store Protocol : "data"
+     *  </ul>
+     *  These are the default names in <a href="http://jena.apache.org/documentation/fuseki2">Fuseki</a> 
+     *  Other names can be specified using {@link #connectFuseki(String, String, String, String)}.
+     *     
+     * @param destination
+     * @return RDFConnectionFuseki
+     */
+    public static RDFConnectionFuseki connectFuseki(String destination) {
+        return (RDFConnectionFuseki)RDFConnectionFuseki.create().destination(destination).build();
+    }
+
+    /** Create a connection to a remote Fuseki server by URL.
+     * This is the URL for the dataset.
+     * 
+     * Each service is then specified by a URL which is relative to the {@code datasetURL}.
+     * 
+     * @param datasetURL
+     * @param queryServiceEndpoint
+     * @param updateServiceEndpoint
+     * @param graphStoreProtocolEndpoint
+     * @return RDFConnectionFuseki
+     */
+    public static RDFConnectionFuseki connectFuseki(String datasetURL, 
+                                                    String queryServiceEndpoint, 
+                                                    String updateServiceEndpoint,
+                                                    String graphStoreProtocolEndpoint) {
+        return (RDFConnectionFuseki)RDFConnectionFuseki.create()
+                .destination(datasetURL)
+                .queryEndpoint(queryServiceEndpoint)
+                .updateEndpoint(updateServiceEndpoint)
+                .gspEndpoint(graphStoreProtocolEndpoint)
+                .build();
+        }
 }

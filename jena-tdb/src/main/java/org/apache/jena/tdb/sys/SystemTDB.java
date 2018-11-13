@@ -30,7 +30,7 @@ import org.apache.jena.query.ARQ ;
 import org.apache.jena.sparql.engine.optimizer.reorder.ReorderLib ;
 import org.apache.jena.sparql.engine.optimizer.reorder.ReorderTransformation ;
 import org.apache.jena.sparql.util.Symbol ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
 import org.apache.jena.tdb.TDB ;
 import org.apache.jena.tdb.TDBException ;
 import org.apache.jena.tdb.base.block.FileMode ;
@@ -53,9 +53,9 @@ public class SystemTDB
      *  @see #errlog 
      */
     // This was added quite late in TDB so need to check it's used appropriately - check for Log.*
-    public static final Logger syslog = LoggerFactory.getLogger("TDB") ;
+    public static final Logger syslog = LoggerFactory.getLogger(TDB.class) ;
     /** Send warnings and error */
-    public static final Logger errlog = LoggerFactory.getLogger("TDB") ;
+    public static final Logger errlog = LoggerFactory.getLogger(TDB.class) ;
     
     // ---- Constants that can't be changed without invalidating on-disk data.  
     

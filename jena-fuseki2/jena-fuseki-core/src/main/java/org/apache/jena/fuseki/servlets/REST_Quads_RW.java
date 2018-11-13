@@ -18,7 +18,9 @@
 
 package org.apache.jena.fuseki.servlets ;
 
-import org.apache.jena.fuseki.FusekiLib ;
+import org.apache.jena.fuseki.system.FusekiNetLib;
+import org.apache.jena.fuseki.system.Upload;
+import org.apache.jena.fuseki.system.UploadDetails;
 import org.apache.jena.riot.RiotException ;
 import org.apache.jena.riot.system.StreamRDF ;
 import org.apache.jena.riot.system.StreamRDFLib ;
@@ -32,8 +34,6 @@ import org.apache.jena.sparql.core.DatasetGraphFactory ;
  */
 
 public class REST_Quads_RW extends REST_Quads_R {
-
-    private static final long serialVersionUID = 4752486333862676195L;
 
     public REST_Quads_RW() {
         super() ;
@@ -90,7 +90,7 @@ public class REST_Quads_RW extends REST_Quads_R {
         UploadDetails details = null ;
         action.beginWrite() ;
         try {
-            DatasetGraph dsg = action.getActiveDSG() ;
+            DatasetGraph dsg = decideDataset(action);
             if ( clearFirst )
                 dsg.clear() ;
             StreamRDF dest = StreamRDFLib.dataset(dsg) ;
@@ -109,7 +109,7 @@ public class REST_Quads_RW extends REST_Quads_R {
             action.abort() ;
             ServletOps.errorOccurred(ex.getMessage()) ;
         } finally {
-            action.endWrite() ;
+            action.end() ;
         }
         ServletOps.uploadResponse(action, details) ;
     }
@@ -128,10 +128,10 @@ public class REST_Quads_RW extends REST_Quads_R {
         // Now insert into dataset
         action.beginWrite() ;
         try {
-            DatasetGraph dsg = action.getActiveDSG() ;
+            DatasetGraph dsg = decideDataset(action);
             if ( clearFirst )
                 dsg.clear() ;
-            FusekiLib.addDataInto(dsgTmp, dsg) ;
+            FusekiNetLib.addDataInto(dsgTmp, dsg) ;
             action.commit() ;
             ServletOps.success(action) ;
         } catch (Exception ex) {
@@ -143,7 +143,7 @@ public class REST_Quads_RW extends REST_Quads_R {
             } catch (Exception ex2) {}
             ServletOps.errorOccurred(ex.getMessage()) ;
         } finally {
-            action.endWrite() ;
+            action.end() ;
         }
         ServletOps.uploadResponse(action, details) ;
     }

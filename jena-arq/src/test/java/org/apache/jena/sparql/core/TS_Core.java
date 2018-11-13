@@ -32,16 +32,18 @@ import org.junit.runners.Suite ;
     , TestDatasetGraphCopyAdd.class
     , TestGraphOverDatasetMem.class
     , TestDatasetGraphViewGraphs.class
+    , TestGraphView.class
     , TestDatasetMonitor.class
-    , TestDatasetGraphWithLock.class
     
     , TestDatasetGraphBaseFind_General.class
     , TestDatasetGraphBaseFind_General.class
     , TestDatasetGraphBaseFind_Mem.class
     , TestDatasetGraphBaseFindPattern_General.class
     , TestDatasetGraphBaseFindPattern_Mem.class
+    , TestSpecialGraphNames.class
     
-    , TestSpecialGraphs.class
+    , TestDatasetGraphFilteredView.class
+    , TestSpecials.class
 })
 
 public class TS_Core

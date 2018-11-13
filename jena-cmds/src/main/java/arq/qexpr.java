@@ -42,7 +42,7 @@ import org.apache.jena.sparql.function.FunctionEnv ;
 import org.apache.jena.sparql.sse.WriterSSE ;
 import org.apache.jena.sparql.util.ExprUtils ;
 import org.apache.jena.sparql.util.NodeFactoryExtra ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
 
 /** A program to execute expressions from the command line. */
 
@@ -170,22 +170,27 @@ public class qexpr
                 pmap.setNsPrefixes(ARQConstants.getGlobalPrefixMap()) ;
                 pmap.setNsPrefix("", "http://example/") ;
                 pmap.setNsPrefix("ex", "http://example/ns#") ;
-//              Node n = asNode() ;
-//              return makeNode(n) ;
 
                 Expr expr = ExprUtils.parse(exprStr, pmap) ;
-                if ( verbose )
-                    System.out.print(expr.toString()+" => ") ;
-                
                 if ( actionPrint )
                 {
-                    if ( actionPrintSPARQL )
-                        System.out.println(ExprUtils.fmtSPARQL(expr)) ;
-                    if ( actionPrintPrefix )
-                        WriterSSE.out(IndentedWriter.stdout, expr, new Prologue(pmap)) ;
+                    IndentedWriter iOut =  IndentedWriter.stdout;
+                    
+                    if ( actionPrintSPARQL ) {
+                        ExprUtils.fmtSPARQL(iOut, expr);
+                        iOut.ensureStartOfLine();
+                    }
+                    if ( actionPrintPrefix ) {
+                        WriterSSE.out(iOut, expr, new Prologue(pmap)) ;
+                        iOut.ensureStartOfLine();
+                    }
+                    iOut.flush();
                     continue ;
                 }
-                
+
+                if ( verbose )
+                    System.out.print(expr.toString()+" => ") ;
+
                 try {
                     if ( actionCopySubstitute )
                     {

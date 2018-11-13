@@ -21,33 +21,54 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.jena</groupId>
-    <artifactId>jena-parent</artifactId>
-    <version>19-SNAPSHOT</version>
-    <relativePath>../jena-parent</relativePath>
+    <artifactId>jena</artifactId>
+    <version>3.10.0-SNAPSHOT</version>
+    <relativePath>..</relativePath>
   </parent>
   <artifactId>jena-base</artifactId>
-  <version>3.3.0-SNAPSHOT</version>
+  <version>3.10.0-SNAPSHOT</version>
   <name>Apache Jena - Base Common Environment</name>
   <description>
     This module contains non-RDF library code and the common system runtime.
   </description>
+
+  <properties>
+    <automatic.module.name>org.apache.jena.base</automatic.module.name>
+  </properties>
 
   <dependencies>
     
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>jena-shaded-guava</artifactId>
-      <version>3.3.0-SNAPSHOT</version>
+      <version>3.10.0-SNAPSHOT</version>
     </dependency>
 
+    <!-- For compiling the log4j1 helper code. -->
     <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <optional>true</optional>
+    </dependency>
+    
+   <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-csv</artifactId>
     </dependency> 
 
     <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+    </dependency> 
+
+    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-compress</artifactId>
     </dependency>
 
     <!-- supports persistent data structures -->
@@ -63,11 +84,11 @@
     </dependency>
 
     <dependency>
-      <groupId>com.jayway.awaitility</groupId>
+      <groupId>org.awaitility</groupId>
       <artifactId>awaitility</artifactId>
       <scope>test</scope>
-    </dependency>    
-    
+    </dependency>
+
   </dependencies>
 
   <build>
@@ -81,6 +102,13 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>${automatic.module.name}</Automatic-Module-Name>
+            </manifestEntries>
+          </archive>
+        </configuration>
         <executions>
           <execution>
             <goals>
@@ -110,14 +138,12 @@
               <goal>jar-no-fork</goal>
             </goals>
           </execution>
-          <!--
           <execution>
             <id>attach-sources-test</id>
             <goals>
               <goal>test-jar</goal>
             </goals>
           </execution>
-          -->
         </executions>
       </plugin>
 
@@ -150,9 +176,6 @@
           <encoding>UTF-8</encoding>
         </configuration>
       </plugin>
-      
     </plugins>
   </build>
-  
-  
 </project>

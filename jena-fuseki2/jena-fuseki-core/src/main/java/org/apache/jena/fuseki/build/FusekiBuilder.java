@@ -18,149 +18,88 @@
 
 package org.apache.jena.fuseki.build;
 
-import static org.apache.jena.fuseki.server.FusekiVocab.* ;
-import static java.lang.String.format ;
-import static org.apache.jena.fuseki.FusekiLib.nodeLabel ;
-import static org.apache.jena.fuseki.FusekiLib.query ;
-import org.apache.jena.assembler.Assembler ;
-import org.apache.jena.datatypes.xsd.XSDDatatype ;
-import org.apache.jena.fuseki.Fuseki ;
-import org.apache.jena.fuseki.FusekiConfigException ;
-import org.apache.jena.fuseki.FusekiLib ;
-import org.apache.jena.fuseki.server.DataAccessPoint ;
+import org.apache.jena.fuseki.FusekiConfigException;
+import org.apache.jena.fuseki.server.DataAccessPoint;
+import org.apache.jena.fuseki.server.DataAccessPointRegistry;
 import org.apache.jena.fuseki.server.DataService ;
-import org.apache.jena.fuseki.server.Endpoint ;
-import org.apache.jena.fuseki.server.OperationName ;
-import org.apache.jena.query.Dataset ;
+import org.apache.jena.fuseki.server.Operation ;
 import org.apache.jena.query.QuerySolution ;
 import org.apache.jena.query.ResultSet ;
-import org.apache.jena.rdf.model.Literal ;
 import org.apache.jena.rdf.model.Property ;
-import org.apache.jena.rdf.model.RDFNode ;
 import org.apache.jena.rdf.model.Resource ;
 import org.apache.jena.sparql.core.DatasetGraph ;
-import org.apache.jena.sparql.util.FmtUtils ;
-import org.apache.jena.vocabulary.RDF ;
-import org.slf4j.Logger ;
+
+/**
+ * Helper functions use to construct Fuseki servers.
+ * @see FusekiConfig
+ */
 public class FusekiBuilder
 {
-    private static Logger log = Fuseki.builderLog ;
-    
-    /** Build a DataAccessPoint, including DataService at Resource svc */ 
-    public static DataAccessPoint buildDataAccessPoint(Resource svc, DatasetDescriptionRegistry dsDescMap) {
-        RDFNode n = FusekiLib.getOne(svc, "fu:name") ;
-        if ( ! n.isLiteral() )
-            throw new FusekiConfigException("Not a literal for access point name: "+FmtUtils.stringForRDFNode(n));
-        Literal object = n.asLiteral() ;
-
-        if ( object.getDatatype() != null && ! object.getDatatype().equals(XSDDatatype.XSDstring) )
-            Fuseki.configLog.error(format("Service name '%s' is not a string", FmtUtils.stringForRDFNode(object)));
-        String name = object.getLexicalForm() ;
-        name = DataAccessPoint.canonical(name) ;
-
-        DataService dataService = FusekiBuilder.buildDataService(svc, dsDescMap) ;
-        DataAccessPoint dataAccess = new DataAccessPoint(name, dataService) ;
-        return dataAccess ;
-    }
-
-    /** Build a DatasetRef starting at Resource svc */
-    private static DataService buildDataService(Resource svc, DatasetDescriptionRegistry dsDescMap) {
-        if ( log.isDebugEnabled() ) log.debug("Service: " + nodeLabel(svc)) ;
-        Resource datasetDesc = ((Resource)getOne(svc, "fu:dataset")) ;
-        Dataset ds = getDataset(datasetDesc, dsDescMap);
- 
-        // In case the assembler included ja:contents
-        DataService dataService = new DataService(ds.asDatasetGraph()) ;
-
-        addServiceEP(dataService, OperationName.Query,  svc,    pServiceQueryEP) ;
-        addServiceEP(dataService, OperationName.Update, svc,    pServiceUpdateEP) ;
-        addServiceEP(dataService, OperationName.Upload, svc,    pServiceUploadEP);
-        addServiceEP(dataService, OperationName.GSP_R,  svc,    pServiceReadGraphStoreEP) ;
-        addServiceEP(dataService, OperationName.GSP_RW, svc,    pServiceReadWriteGraphStoreEP) ;
-
-        addServiceEP(dataService, OperationName.Quads_R, svc,   pServiceReadQuadsEP) ;
-        addServiceEP(dataService, OperationName.Quads_RW, svc,  pServiceReadWriteQuadsEP) ;
-        
-        // Quads - actions directly on the dataset URL are different.
-        // In the config file they are also implicit when using GSP.
-        if ( ! dataService.getOperation(OperationName.GSP_RW).isEmpty() || ! dataService.getOperation(OperationName.Quads_RW).isEmpty() ) {
-            dataService.addEndpoint(OperationName.Quads_RW, "") ;
-        } else if ( ! dataService.getOperation(OperationName.GSP_R).isEmpty() || ! dataService.getOperation(OperationName.Quads_R).isEmpty() ) {
-            dataService.addEndpoint(OperationName.Quads_R, "") ;
-        }
-        
-        // XXX 
-//        // Extract timeout overriding configuration if present.
-//        if ( svc.hasProperty(FusekiVocab.pAllowTimeoutOverride) ) {
-//            sDesc.allowTimeoutOverride = svc.getProperty(FusekiVocab.pAllowTimeoutOverride).getObject().asLiteral().getBoolean() ;
-//            if ( svc.hasProperty(FusekiVocab.pMaximumTimeoutOverride) ) {
-//                sDesc.maximumTimeoutOverride = (int)(svc.getProperty(FusekiVocab.pMaximumTimeoutOverride).getObject().asLiteral().getFloat() * 1000) ;
-//            }
-//        }
-
-        return dataService ;
-    }
-    
-    static Dataset getDataset(Resource datasetDesc, DatasetDescriptionRegistry dsDescMap) {
-    	// check if this one already built
-    	Dataset ds = dsDescMap.get(datasetDesc);
-    	if (ds == null) {
-    	    // Check if the description is in the model.
-            if ( !datasetDesc.hasProperty(RDF.type) )
-                throw new FusekiConfigException("No rdf:type for dataset " + nodeLabel(datasetDesc)) ;
-            ds = (Dataset)Assembler.general.open(datasetDesc) ;
-    	}
-    	// Some kind of check that it is "the same" dataset.  
-    	// It can be different if two descriptions in different files have the same URI.
-    	dsDescMap.register(datasetDesc, ds);
-    	return ds;
-    }
-    
-    /** Build a DataService starting at Resource svc */
-    public static DataService buildDataService(DatasetGraph dsg, boolean allowUpdate) {
+    /** Build a DataService starting at Resource svc, with the standard (default) set of services */
+    public static DataService buildDataServiceStd(DatasetGraph dsg, boolean allowUpdate) {
         DataService dataService = new DataService(dsg) ;
-        addServiceEP(dataService, OperationName.Query, "query") ;
-        addServiceEP(dataService, OperationName.Query, "sparql") ;
-        if ( ! allowUpdate ) {
-            addServiceEP(dataService, OperationName.GSP_R,      "data") ;
-            addServiceEP(dataService, OperationName.Quads_R,    "") ;
-            return dataService ;
-        }
-        addServiceEP(dataService, OperationName.GSP_RW,     "data") ;
-        addServiceEP(dataService, OperationName.GSP_R,      "get") ;
-        addServiceEP(dataService, OperationName.Update,     "update") ;
-        addServiceEP(dataService, OperationName.Upload,     "upload") ;
-        addServiceEP(dataService, OperationName.Quads_RW,   "") ;
+        populateStdServices(dataService, allowUpdate);
         return dataService ;
+    }        
+        
+    /** Convenience operation to populate a {@link DataService} with the conventional default services. */ 
+    public static void populateStdServices(DataService dataService, boolean allowUpdate) {
+        addServiceEP(dataService, Operation.Query,      "query") ;
+        addServiceEP(dataService, Operation.Query,      "sparql") ;
+        if ( ! allowUpdate ) {
+            addServiceEP(dataService, Operation.GSP_R,      "data") ;
+            addServiceEP(dataService, Operation.DatasetRequest_R,    "") ;
+            return;
+        }
+        addServiceEP(dataService, Operation.GSP_RW,     "data") ;
+        addServiceEP(dataService, Operation.GSP_R,      "get") ;
+        addServiceEP(dataService, Operation.Update,     "update") ;
+        addServiceEP(dataService, Operation.Upload,     "upload") ;
+        addServiceEP(dataService, Operation.DatasetRequest_RW, "") ;
     }
 
-    private static void addServiceEP(DataService dataService, OperationName opName, String epName) {
-        dataService.addEndpoint(opName, epName) ; 
+    /** Add an operation to a {@link DataService} with a given endpoint name */
+    public static void addServiceEP(DataService dataService, Operation operation, String endpointName) {
+        dataService.addEndpoint(operation, endpointName) ; 
     }
 
-    public static RDFNode getOne(Resource svc, String property) {
-        String ln = property.substring(property.indexOf(':') + 1) ;
-        ResultSet rs = FusekiLib.query("SELECT * { ?svc " + property + " ?x}", svc.getModel(), "svc", svc) ;
-        if ( !rs.hasNext() )
-            throw new FusekiConfigException("No " + ln + " for service " + FusekiLib.nodeLabel(svc)) ;
-        RDFNode x = rs.next().get("x") ;
-        if ( rs.hasNext() )
-            throw new FusekiConfigException("Multiple " + ln + " for service " + FusekiLib.nodeLabel(svc)) ;
-        return x ;
-    }
-
-    private static void addServiceEP(DataService dataService, OperationName opName, Resource svc, Property property) {
+    public static void addServiceEP(DataService dataService, Operation operation, Resource svc, Property property) {
         String p = "<"+property.getURI()+">" ;
-        ResultSet rs = query("SELECT * { ?svc " + p + " ?ep}", svc.getModel(), "svc", svc) ;
+        ResultSet rs = FusekiBuildLib.query("SELECT * { ?svc " + p + " ?ep}", svc.getModel(), "svc", svc) ;
         for ( ; rs.hasNext() ; ) {
             QuerySolution soln = rs.next() ;
             String epName = soln.getLiteral("ep").getLexicalForm() ;
-            Endpoint operation = new Endpoint(opName, epName) ;
-            addServiceEP(dataService, opName, epName); 
-            //log.info("  " + opName.name + " = " + dataAccessPoint.getName() + "/" + epName) ;
+            addServiceEP(dataService, operation, epName); 
+            //log.info("  " + operation.name + " = " + dataAccessPoint.getName() + "/" + epName) ;
         }
     }
-
-
+    
+    public static void addDataService(DataAccessPointRegistry dataAccessPoints, String name, DataService dataService) {
+        name = DataAccessPoint.canonical(name);
+        if ( dataAccessPoints.isRegistered(name) )
+            throw new FusekiConfigException("Data service name already registered: "+name);
+        DataAccessPoint dap = new DataAccessPoint(name, dataService);
+        dataAccessPoints.register(dap);
+    }
+    
+    public static void addDataset(DataAccessPointRegistry dataAccessPoints, String name, DatasetGraph dsg, boolean withUpdate) {
+        name = DataAccessPoint.canonical(name);
+        if ( dataAccessPoints.isRegistered(name) )
+            throw new FusekiConfigException("Data service name already registered: "+name);
+        DataAccessPoint dap = buildDataAccessPoint(name, dsg, withUpdate);
+        dataAccessPoints.register(dap);
+    }
+    
+    private static DataAccessPoint buildDataAccessPoint(String name, DatasetGraph dsg, boolean withUpdate) { 
+        // See Builder. DRY.
+        DataService dataService = FusekiBuilder.buildDataServiceStd(dsg, withUpdate);
+        DataAccessPoint dap = new DataAccessPoint(name, dataService);
+        return dap;
+    }
+    
+    public static void removeDataset(DataAccessPointRegistry dataAccessPoints, String name) {
+        name = DataAccessPoint.canonical(name);
+        dataAccessPoints.remove(name);
+    }
 }
 

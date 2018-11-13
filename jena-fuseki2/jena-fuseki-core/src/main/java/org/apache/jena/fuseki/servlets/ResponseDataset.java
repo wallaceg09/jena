@@ -30,8 +30,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.jena.atlas.web.MediaType;
 import org.apache.jena.fuseki.DEF;
 import org.apache.jena.fuseki.Fuseki;
-import org.apache.jena.fuseki.conneg.ConNeg;
-import org.apache.jena.fuseki.conneg.WebLib;
+import org.apache.jena.fuseki.system.ConNeg;
+import org.apache.jena.fuseki.system.FusekiNetLib;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory ;
 import org.apache.jena.rdf.model.Model ;
@@ -93,7 +93,7 @@ public class ResponseDataset
         if ( mimeType == null )
         {
             Fuseki.actionLog.warn("Can't find MIME type for response") ;
-            String x = WebLib.getAccept(request) ;
+            String x = FusekiNetLib.getAccept(request) ;
             String msg ;
             if ( x == null )
                 msg = "No Accept: header" ;
@@ -117,7 +117,7 @@ public class ResponseDataset
             ServletOps.errorBadRequest("Can't determine output content type: "+contentType) ;
 
         try {
-            ResponseResultSet.setHttpResponse(action, contentType, charset) ;
+            ResponseOps.setHttpResponse(action, contentType, charset) ;
             response.setStatus(HttpSC.OK_200) ;
             ServletOutputStream out = response.getOutputStream() ;
             try {

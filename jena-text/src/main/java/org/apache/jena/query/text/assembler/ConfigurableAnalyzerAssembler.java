@@ -25,7 +25,6 @@ import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.query.text.TextIndexException;
-import org.apache.jena.query.text.TextIndexLucene;
 import org.apache.jena.query.text.analyzer.ConfigurableAnalyzer;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
@@ -56,7 +55,7 @@ public class ConfigurableAnalyzerAssembler extends AssemblerBase {
     public Analyzer open(Assembler a, Resource root, Mode mode) {
         if (root.hasProperty(TextVocab.pTokenizer)) {
             Resource tokenizerResource = root.getPropertyResourceValue(TextVocab.pTokenizer);
-            String tokenizer = tokenizerResource.getLocalName();
+            String tokenizer = tokenizerResource.getURI();
             List<String> filters;
             if (root.hasProperty(TextVocab.pFilters)) {
                 Resource filtersResource = root.getPropertyResourceValue(TextVocab.pFilters);
@@ -64,7 +63,7 @@ public class ConfigurableAnalyzerAssembler extends AssemblerBase {
             } else {
                 filters = new ArrayList<>();
             }
-            return new ConfigurableAnalyzer(TextIndexLucene.VER, tokenizer, filters);
+            return new ConfigurableAnalyzer(tokenizer, filters);
         } else {
             throw new TextIndexException("text:tokenizer setting is required by ConfigurableAnalyzer");
         }
@@ -83,7 +82,7 @@ public class ConfigurableAnalyzerAssembler extends AssemblerBase {
                 throw new TextIndexException("filter is not a resource : " + node);
             }
             
-            result.add(node.asResource().getLocalName());
+            result.add(node.asResource().getURI());
             stmt = current.getProperty(RDF.rest);
             if (stmt == null) {
                 throw new TextIndexException("filter list not terminated by rdf:nil");

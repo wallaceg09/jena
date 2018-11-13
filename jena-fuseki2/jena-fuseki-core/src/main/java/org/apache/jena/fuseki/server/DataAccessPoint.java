@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong ;
 
 import org.apache.jena.fuseki.servlets.HttpAction ;
 
-
 /** A name in the URL space of the server */
 public class DataAccessPoint {
     private final String name ;
@@ -32,6 +31,7 @@ public class DataAccessPoint {
     public DataAccessPoint(String name, DataService dataService) {
         this.name = canonical(name) ;
         this.dataService = dataService ;
+        dataService.noteDataAccessPoint(this);
     }
     
     public String getName()     { return name ; }

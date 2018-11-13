@@ -29,7 +29,7 @@ import org.apache.jena.atlas.lib.Sync ;
  * Interface to storage : a simplified version of FileChannel. Read and write
  * bytes, passed via ByteBuffers, addressed by file location. This interface is
  * not suitable for memory mapped I/O - there is no ability to use slices of a
- * memort mapped file. This interface does not insert size of ByteBuffer - size
+ * memory mapped file. This interface does not insert size of ByteBuffer - size
  * of ByteBuffer passed to read controls the number of bytes read. Having our
  * own abstraction enables us to implement memory-backed versions.
  * 
@@ -40,7 +40,6 @@ public interface BufferChannel extends Sync, Closeable
 {
     // This is a simple, low level "file = array of bytes" interface"
     // This interface does not support slicing - so it's not suitable for memory mapped I/O
-    // TODO Consider use of allocateDirect 
     
     /** Return another channel to the same storage but with independent position.
      * Chaos may result due to concurrent use.

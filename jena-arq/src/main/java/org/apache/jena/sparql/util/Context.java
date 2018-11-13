@@ -20,8 +20,8 @@ package org.apache.jena.sparql.util ;
 
 import java.util.* ;
 import java.util.concurrent.ConcurrentHashMap ;
+import java.util.function.BiConsumer;
 
-import org.apache.jena.atlas.lib.Callback ;
 import org.apache.jena.atlas.lib.Lib ;
 import org.apache.jena.query.ARQ ;
 import org.apache.jena.sparql.ARQConstants ;
@@ -37,7 +37,7 @@ public class Context {
     public static final Context      emptyContext = new Context(true) ;
 
     protected Map<Symbol, Object>    context      = new ConcurrentHashMap<>() ;
-    protected List<Callback<Symbol>> callbacks    = new ArrayList<>() ;
+
     protected boolean                readonly     = false ;
 
     /** Create an empty context */
@@ -56,6 +56,44 @@ public class Context {
         putAll(cxt) ;
     }
 
+    // All access to the underlying goes via map*.
+    
+    protected Object mapGet(Symbol property) {
+        return context.get(property);
+    }
+
+    protected void mapPut(Symbol property, Object value) {
+        if ( readonly )
+            throw new ARQException("Context is readonly") ;
+        if ( property == null )
+            throw new ARQException("Context key is null") ;
+        if ( value == null ) {
+            mapRemove(property) ;
+            return ;
+        }
+        context.put(property, value) ;
+    }
+
+    protected void mapRemove(Symbol property) {
+        context.remove(property);
+    }
+
+    protected boolean mapContains(Symbol property) {
+        return context.containsKey(property);
+    }
+
+    protected Set<Symbol> mapKeySet() {
+        return context.keySet();
+    }
+
+    protected int mapSize() {
+        return context.size();
+    }
+
+    protected void mapForEach(BiConsumer<Symbol, Object> action) {
+        context.forEach(action);
+    }
+
     /**
      * Return a copy of this context. Modifications of the copy do not affect
      * the original context.
@@ -69,7 +107,7 @@ public class Context {
     /** Get the object value of a property or null */
     @SuppressWarnings("unchecked")
     public <T> T get(Symbol property) {
-        return (T) context.get(property) ;
+        return (T) mapGet(property) ;
     }
 
     /**
@@ -77,7 +115,7 @@ public class Context {
      * present .
      */
     public Object get(Symbol property, Object defaultValue) {
-        Object x = context.get(property) ;
+        Object x = mapGet(property) ;
         if ( x == null )
             return defaultValue ;
         return x ;
@@ -85,28 +123,16 @@ public class Context {
 
     /** Store a named value - overwrites any previous set value */
     public void put(Symbol property, Object value) {
-        _put(property, value) ;
-        doCallbacks(property) ;
+        mapPut(property, value) ;
     }
 
     /** Store a named value - overwrites any previous set value */
     public void set(Symbol property, Object value) {
-        _put(property, value) ;
-        doCallbacks(property) ;
+        mapPut(property, value) ;
     }
 
-    private void _put(Symbol property, Object value) {
-        if ( readonly )
-            throw new ARQException("Context is readonly") ;
-        if ( property == null )
-            throw new ARQException("Context key is null") ;
-        if ( value == null ) {
-            context.remove(property) ;
-            return ;
-        }
-        context.put(property, value) ;
-    }
-
+    // All access to the underlying goes via map*.
+    
     /** Store a named value - overwrites any previous set value */
     public void set(Symbol property, boolean value) {
         if ( value )
@@ -117,21 +143,19 @@ public class Context {
 
     /** Store a named value only if it is not currently set */
     public void setIfUndef(Symbol property, Object value) {
-        Object x = context.get(property) ;
+        Object x = mapGet(property) ;
         if ( x == null )
             put(property, value) ;
     }
 
     /** Remove any value associated with a property */
     public void remove(Symbol property) {
-        context.remove(property) ;
-        doCallbacks(property) ;
+        mapRemove(property) ;
     }
 
     /** Remove any value associated with a property - alternative method name */
     public void unset(Symbol property) {
-        context.remove(property) ;
-        doCallbacks(property) ;
+        remove(property) ;
     }
 
     // ---- Helpers
@@ -140,7 +164,7 @@ public class Context {
 
     /** Is a property set? */
     public boolean isDefined(Symbol property) {
-        return context.containsKey(property) ;
+        return mapContains(property) ;
     }
 
     /** Is a property not set? */
@@ -163,17 +187,17 @@ public class Context {
 
     /** Get the value a string (uses .toString() if the value is not null) */
     public String getAsString(Symbol property) {
-        Object x = context.get(property) ;
+        Object x = mapGet(property) ;
         if ( x == null )
             return null ;
         return x.toString() ;
     }
     
-    /** Get the value as a a long value. The context entry can be a string, Integer or Long. */
+    /** Get the value as a long value. The context entry can be a string, Integer or Long. */
     public int getInt(Symbol symbol, int defaultValue) {
         if (  isUndef(symbol) )
             return defaultValue ; 
-        Object obj = context.get(symbol) ;
+        Object obj = mapGet(symbol) ;
         if ( obj instanceof String ) {
             return Integer.parseInt((String)obj) ;
         } else if ( obj instanceof Integer ) {
@@ -183,11 +207,11 @@ public class Context {
         }
     }
 
-    /** Get the value as a a long value. The context entry can be a string, Integer or Long. */
+    /** Get the value as a long value. The context entry can be a string, Integer or Long. */
     public long getLong(Symbol symbol, long defaultValue) {
         if (  isUndef(symbol) )
             return defaultValue ; 
-        Object obj = context.get(symbol) ;
+        Object obj = mapGet(symbol) ;
         if ( obj instanceof String ) {
             return Long.parseLong((String)obj) ;
         } else if ( obj instanceof Integer ) {
@@ -195,27 +219,25 @@ public class Context {
         } else if ( obj instanceof Long ) {
             return ((Long)obj) ;
         } else {
-            throw new ARQException("Value for "+symbol+" is not a recoginized class: "+Lib.className(obj)) ;
+            throw new ARQException("Value for "+symbol+" is not a recognized class: "+Lib.className(obj)) ;
         }
     }
     
     public void putAll(Context other) {
         if ( readonly )
             throw new ARQException("Context is readonly") ;
-        if ( other != null ) {
-            for ( Map.Entry<Symbol, Object> e : other.context.entrySet() )
-                put(e.getKey(), e.getValue()) ;
-        }
+        if ( other != null )
+            other.mapForEach(this::put);
     }
 
     // -- true/false
 
-    /** Set propety value to be true */
+    /** Set property value to be true */
     public void setTrue(Symbol property) {
         set(property, Boolean.TRUE) ;
     }
 
-    /** Set propety value to be false */
+    /** Set property value to be false */
     public void setFalse(Symbol property) {
         set(property, Boolean.FALSE) ;
     }
@@ -307,31 +329,12 @@ public class Context {
 
     /** Set of properties (as Symbols) currently defined */
     public Set<Symbol> keys() {
-        return context.keySet() ;
+        return mapKeySet() ;
     }
 
     /** Return the number of context items */
     public int size() {
-        return context.size() ;
-    }
-
-    // ---- Callbacks
-    public synchronized void addCallback(Callback<Symbol> m) {
-        callbacks.add(m) ;
-    }
-
-    public synchronized void removeCallback(Callback<Symbol> m) {
-        callbacks.remove(m) ;
-    }
-
-    public synchronized List<Callback<Symbol>> getCallbacks() {
-        return Collections.unmodifiableList(callbacks) ;
-    }
-
-    private synchronized void doCallbacks(Symbol symbol) {
-        for ( Callback<Symbol> c : callbacks ) {
-            c.apply(symbol) ;
-        }
+        return mapSize() ;
     }
 
     @Override
@@ -346,27 +349,40 @@ public class Context {
         return x ;
     }
 
-    // Put any per-dataset execution global configuration state here.
-    public static Context setupContext(Context context, DatasetGraph dataset) {
-        if ( context == null )
-            context = ARQ.getContext() ; // Already copied?
-        context = context.copy() ;
-
-        if ( dataset != null && dataset.getContext() != null )
-            // Copy per-dataset settings.
-            context.putAll(dataset.getContext()) ;
+    /** Setup a context using another context and a dataset.
+     *  This adds the current time.
+     */
+    public static Context setupContextExec(Context globalContext, DatasetGraph dataset) {
+        if ( globalContext == null )
+            globalContext = ARQ.getContext();
+        // Copy per-dataset settings.
+        Context dsgCxt = ( dataset != null && dataset.getContext() != null ) 
+            ? dataset.getContext()
+            : null;
+        
+        Context context = mergeCopy(globalContext, dsgCxt); 
 
         context.set(ARQConstants.sysCurrentTime, NodeFactoryExtra.nowAsDateTime()) ;
 
         // Allocators.
-        // context.set(ARQConstants.sysVarAllocNamed, new
-        // VarAlloc(ARQConstants.allocVarMarkerExec)) ;
-        // context.set(ARQConstants.sysVarAllocAnon, new
-        // VarAlloc(ARQConstants.allocVarAnonMarkerExec)) ;
+        // context.set(ARQConstants.sysVarAllocNamed, new VarAlloc(ARQConstants.allocVarMarkerExec)) ;
+        // context.set(ARQConstants.sysVarAllocAnon, new VarAlloc(ARQConstants.allocVarAnonMarkerExec)) ;
         // Add VarAlloc for variables and bNodes (this is not the parse name).
-        // More added later e.g. query (if there is a query), algebra form (in
-        // setOp)
+        // More added later e.g. query (if there is a query), algebra form (in setOp)
 
+        return context;
+    }
+
+    /** Merge an outer (global) and local context to produce a new context
+     * The new context is always a separate copy.  
+     */
+    public static Context mergeCopy(Context contextGlobal, Context contextLocal) {
+        if ( contextGlobal == null )
+            contextGlobal = ARQ.getContext();
+        Context context = contextGlobal.copy();
+        if ( contextLocal != null )
+            // Copy per-dataset settings.
+            context.putAll(contextLocal);
         return context ;
     }
 
@@ -397,5 +413,4 @@ public class Context {
             return false ;
         return true ;
     }
-
 }

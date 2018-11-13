@@ -38,8 +38,6 @@ import org.apache.jena.sparql.core.DatasetGraph ;
 
 public class REST_Quads_R extends REST_Quads {
 
-    private static final long serialVersionUID = 1309929984893333563L;
-
     public REST_Quads_R() {
         super() ;
     }
@@ -82,7 +80,7 @@ public class REST_Quads_R extends REST_Quads {
 
         action.beginRead() ;
         try {
-            DatasetGraph dsg = action.getActiveDSG() ;
+            DatasetGraph dsg = decideDataset(action); 
             action.response.setHeader("Content-type", lang.getContentType().toHeaderString());
             // ActionLib.contentNegotationQuads above
             // RDF/XML is not a choice but this code is general.

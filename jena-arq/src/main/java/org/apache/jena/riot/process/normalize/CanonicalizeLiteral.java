@@ -30,6 +30,7 @@ import org.apache.jena.riot.web.LangTag ;
 import org.apache.jena.sparql.util.NodeUtils ;
 import org.apache.jena.vocabulary.RDF ;
 
+/** Convert literals to canonical form. */   
 public class CanonicalizeLiteral implements Function<Node, Node>    
 {
     private static final CanonicalizeLiteral singleton = new CanonicalizeLiteral(); 
@@ -38,10 +39,17 @@ public class CanonicalizeLiteral implements Function<Node, Node>
 
     private CanonicalizeLiteral() {}
     
+    /**
+     * Canonicaize a literal, both lexical form and language tag (RFc canonical). 
+     */
     @Override
     public Node apply(Node node) {
         if ( ! node.isLiteral() )
             return node ;
+
+        if ( ! node.getLiteralDatatype().isValid(node.getLiteralLexicalForm()) )
+            // Invalid lexical form for the datatype - do nothing.
+            return node;
             
         RDFDatatype dt = node.getLiteralDatatype() ;
         Node n2 ;
@@ -68,6 +76,36 @@ public class CanonicalizeLiteral implements Function<Node, Node>
         return n2 ;
     }
     
+    /** Convert the lexical form to a canonical form if one of the known datatypes,
+     * otherwise return the node argument. (same object :: {@code ==})  
+     */
+    public static Node canonicalValue(Node node) {
+        if ( ! node.isLiteral() )
+            return node ;
+        // Fast-track
+        if ( NodeUtils.isLangString(node) )
+            return node;
+        if ( NodeUtils.isSimpleString(node) )
+            return node;
+
+        if ( ! node.getLiteralDatatype().isValid(node.getLiteralLexicalForm()) )
+            // Invalid lexical form for the datatype - do nothing.
+            return node;
+            
+        RDFDatatype dt = node.getLiteralDatatype() ;
+        // Datatype, not rdf:langString (RDF 1.1). 
+        DatatypeHandler handler = dispatch.get(dt) ;
+        if ( handler == null )
+            return node ;
+        Node n2 = handler.handle(node, node.getLiteralLexicalForm(), dt) ;
+        if ( n2 == null )
+            return node ;
+        return n2 ;
+    }
+    
+    /** Convert the language tag of a lexical form to a canonical form if one of the known datatypes,
+     * otherwise return the node argument. (same object; compare by {@code ==})  
+     */
     private static Node canonicalLangtag(String lexicalForm, String langTag) {
         String langTag2 = LangTag.canonical(langTag);
         if ( langTag2.equals(langTag) )

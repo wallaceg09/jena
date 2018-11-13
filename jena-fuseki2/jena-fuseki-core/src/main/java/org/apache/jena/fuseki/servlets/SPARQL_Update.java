@@ -44,10 +44,10 @@ import javax.servlet.http.HttpServletRequest ;
 import javax.servlet.http.HttpServletResponse ;
 
 import org.apache.jena.atlas.io.IO ;
+import org.apache.jena.atlas.lib.Bytes ;
 import org.apache.jena.atlas.lib.StrUtils ;
 import org.apache.jena.atlas.web.ContentType ;
 import org.apache.jena.fuseki.Fuseki ;
-import org.apache.jena.fuseki.FusekiLib ;
 import org.apache.jena.graph.Node ;
 import org.apache.jena.graph.NodeFactory ;
 import org.apache.jena.iri.IRI ;
@@ -65,15 +65,12 @@ import org.apache.jena.web.HttpSC ;
 
 public class SPARQL_Update extends SPARQL_Protocol
 {
-    private static final long serialVersionUID = 6136544994836781248L;
     // Base URI used to isolate parsing from the current directory of the server.
     private static final String UpdateParseBase = Fuseki.BaseParserSPARQL ;
     private static final IRIResolver resolver = IRIResolver.create(UpdateParseBase) ;
 
     public SPARQL_Update()
     { super() ; }
-
-    // doMethod : Not used with UberServlet dispatch.
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -100,7 +97,7 @@ public class SPARQL_Update extends SPARQL_Protocol
 
     @Override
     protected void perform(HttpAction action) {
-        ContentType ct = FusekiLib.getContentType(action) ;
+        ContentType ct = ActionLib.getContentType(action) ;
         if ( ct == null )
             ct = ctSPARQLUpdate ;
 
@@ -129,7 +126,7 @@ public class SPARQL_Update extends SPARQL_Protocol
         if ( ! HttpNames.METHOD_POST.equalsIgnoreCase(request.getMethod()) )
             ServletOps.errorMethodNotAllowed("SPARQL Update : use POST") ;
 
-        ContentType ct = FusekiLib.getContentType(action) ;
+        ContentType ct = ActionLib.getContentType(action) ;
         if ( ct == null )
             ct = ctSPARQLUpdate ;
 
@@ -178,13 +175,14 @@ public class SPARQL_Update extends SPARQL_Protocol
 
         if ( action.verbose ) {
             // Verbose mode only .... capture request for logging (does not scale).
-            String requestStr = null ;
-            try { requestStr = IO.readWholeFileAsUTF8(input) ; }
-            catch (IOException ex) { IO.exception(ex) ; }
-            action.log.info(format("[%d] Update = %s", action.id, ServletOps.formatForLog(requestStr))) ;
-
-            input = new ByteArrayInputStream(requestStr.getBytes());
-            requestStr = null;
+            byte[] bytes = IO.readWholeFile(input);
+            input = new ByteArrayInputStream(bytes);
+            try {
+                String requestStr = Bytes.bytes2string(bytes) ;
+                action.log.info(format("[%d] Update = %s", action.id, ServletOps.formatForLog(requestStr))) ;
+            } catch (Exception ex) {
+                action.log.info(format("[%d] Update = <failed to decode>", action.id)) ;
+            }
         }
 
         execute(action, input) ;
@@ -250,7 +248,7 @@ public class SPARQL_Update extends SPARQL_Protocol
                 try { action.abort() ; } catch (Exception ex2) {}
                 ServletOps.errorOccurred(ex.getMessage(), ex) ;
             }
-        } finally { action.endWrite(); }
+        } finally { action.end(); }
     }
 
     /* [It is an error to supply the using-graph-uri or using-named-graph-uri parameters

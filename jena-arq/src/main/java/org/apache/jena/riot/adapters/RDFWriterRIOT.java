@@ -34,7 +34,16 @@ import org.apache.jena.riot.system.RiotLib ;
 import org.apache.jena.sparql.util.Context ;
 import org.apache.jena.sparql.util.Symbol ;
 
-/** Adapter from RIOT to old style Jena RDFWriter. */
+/**
+ * This class is used for indirecting all model.write calls to RIOT. It
+ * implements Jena core {@link RDFWriter} can calls {@link WriterGraphRIOT}.
+ * <p>
+ * For RDF/XML, that {@link WriterGraphRIOT} is a {@link AdapterRDFWriter} that
+ * calls the old style {@link RDFWriter} interface.
+ * <p>
+ * {@link AdapterRDFWriter} is a {@link WriterGraphRIOT} over a
+ * {@link RDFWriter}.
+ */
 public class RDFWriterRIOT implements RDFWriter 
 {
     // ---- Compatibility
@@ -48,15 +57,15 @@ public class RDFWriterRIOT implements RDFWriter
     public RDFWriterRIOT(String jenaName) {
         this.basename = "org.apache.jena.riot.writer." + jenaName.toLowerCase(Locale.ROOT);
         this.jenaName = jenaName;
-        context.put(SysRIOT.rdfWriterProperties, properties);
+        context.put(SysRIOT.sysRdfWriterProperties, properties);
     }
 
-    private WriterGraphRIOT writer() {
+    protected WriterGraphRIOT writer() {
         if ( writer != null )
             return writer;
         if ( jenaName == null )
             throw new IllegalArgumentException("Jena writer name is null");
-        // For writing via model.write(), use the old names for jena writers.
+        // For writing via model.write(), use any old names for jena writers. (As of 2107-03 - there are none)
         RDFFormat format = RDFWriterRegistry.getFormatForJenaWriter(jenaName) ;
         if ( format != null )
             return RDFDataMgr.createGraphWriter(format) ;
@@ -88,6 +97,7 @@ public class RDFWriterRIOT implements RDFWriter
         Object oldObj = context.get(sym);
         context.set(sym, propValue);
         properties.put(propName, propValue) ;
+        // These are added to any Jena RDFWriter (old-style, e.g. RDF/XML) in AdapterRDFWriter  
         return oldObj;
     }
 

@@ -17,6 +17,11 @@
  */
 package org.apache.jena.sparql.engine.iterator;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +30,7 @@ import java.util.Set;
 import org.apache.jena.atlas.io.IndentedWriter;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.graph.impl.GraphPlain ;
 import org.apache.jena.query.QueryCancelledException;
 import org.apache.jena.query.SortCondition;
 import org.apache.jena.sparql.core.DatasetGraph;
@@ -35,17 +41,11 @@ import org.apache.jena.sparql.engine.binding.Binding;
 import org.apache.jena.sparql.engine.binding.BindingComparator;
 import org.apache.jena.sparql.engine.binding.BindingFactory;
 import org.apache.jena.sparql.engine.binding.BindingMap;
-import org.apache.jena.sparql.engine.iterator.QueryIterSort;
-import org.apache.jena.sparql.engine.iterator.QueryIteratorBase;
 import org.apache.jena.sparql.engine.main.OpExecutor;
 import org.apache.jena.sparql.engine.main.OpExecutorFactory;
-import org.apache.jena.sparql.graph.GraphMemPlain;
 import org.apache.jena.sparql.serializer.SerializationContext;
 import org.apache.jena.sparql.util.Context;
 import org.junit.Test;
-
-import junit.framework.TestCase;
-
 /*
 	Test that a SortedDataBag used inside a QueryIterSort
 	does indeed cut off when cancelled.
@@ -55,7 +55,7 @@ import junit.framework.TestCase;
 	test the SortedDataBag correctly?
  
 */
-public class TestSortedDataBagCancellation extends TestCase {
+public class TestSortedDataBagCancellation {
 
     static final BindingMap b1 = BindingFactory.create();
     static final BindingMap b2 = BindingFactory.create();
@@ -79,7 +79,7 @@ public class TestSortedDataBagCancellation extends TestCase {
         }
     };
 
-    final Graph activeGraph = new GraphMemPlain();
+    final Graph activeGraph = GraphPlain.plain();
 
     final DatasetGraph dataset = DatasetGraphFactory.create();
 

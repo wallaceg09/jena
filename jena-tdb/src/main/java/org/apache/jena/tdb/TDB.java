@@ -30,17 +30,16 @@ import org.apache.jena.query.ARQ ;
 import org.apache.jena.query.Dataset ;
 import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.reasoner.InfGraph ;
-import org.apache.jena.riot.lang.LangRDFXML ;
+import org.apache.jena.riot.lang.ReaderRIOTRDFXML;
 import org.apache.jena.sparql.SystemARQ ;
 import org.apache.jena.sparql.core.DatasetGraph ;
 import org.apache.jena.sparql.engine.main.StageBuilder ;
 import org.apache.jena.sparql.engine.main.StageGenerator ;
-import org.apache.jena.sparql.lib.Metadata ;
 import org.apache.jena.sparql.mgt.SystemInfo ;
 import org.apache.jena.sparql.util.Context ;
 import org.apache.jena.sparql.util.MappingRegistry ;
 import org.apache.jena.sparql.util.Symbol ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
 import org.apache.jena.tdb.assembler.AssemblerTDB ;
 import org.apache.jena.tdb.modify.UpdateEngineTDB ;
 import org.apache.jena.tdb.setup.DatasetBuilderStd ;
@@ -50,10 +49,14 @@ import org.apache.jena.tdb.store.DatasetGraphTDB ;
 import org.apache.jena.tdb.sys.EnvTDB ;
 import org.apache.jena.tdb.sys.SystemTDB ;
 import org.apache.jena.tdb.transaction.DatasetGraphTransaction ;
+import org.apache.jena.util.Metadata;
 import org.slf4j.Logger ;
 import org.slf4j.LoggerFactory ;
 
 public class TDB {
+
+    private TDB() {}
+    
     // Initialization statics must be first in the class to avoid
     // problems with recursive initialization.  Specifcally,
     // initLock being null because elsewhere started the initialization
@@ -68,11 +71,12 @@ public class TDB {
     /** IRI for TDB */
     public static final String  tdbIRI                           = "http://jena.hpl.hp.com/#tdb" ;
 
+    
     /** Root of TDB-defined parameter names */
-    public static final String  tdbParamNS                       = "http://jena.hpl.hp.com/TDB#" ;
+    public static final String  tdbParamNS                       = SystemTDB.symbolNamespace;
 
     /** Prefix for TDB-defined parameter names */
-    public static final String  tdbSymbolPrefix                  = "tdb" ;
+    public static final String  tdbSymbolPrefix                  = SystemTDB.tdbSymbolPrefix;
 
     // Internal logging
     private static final Logger log                              = LoggerFactory.getLogger(TDB.class) ;
@@ -199,7 +203,7 @@ public class TDB {
     /**
      * Sync a TDB synchronizable object (model, graph, dataset). If force is
      * true, synchronize as much as possible (e.g. file metadata) else make a
-     * reasonable attenpt at synchronization but does not gauarantee disk state.
+     * reasonable attempt at synchronization but does not guarantee disk state.
      * Do nothing otherwise
      */
     private static void syncObject(Object object) {
@@ -244,14 +248,13 @@ public class TDB {
             }
             initialized = true ;
             JenaSystem.logLifecycle("TDB.init - start") ;
-            LangRDFXML.RiotUniformCompatibility = true ;
+            ReaderRIOTRDFXML.RiotUniformCompatibility = true ;
             EnvTDB.processGlobalSystemProperties() ;
-
+            
             MappingRegistry.addPrefixMapping(SystemTDB.tdbSymbolPrefix, SystemTDB.symbolNamespace) ;
             AssemblerTDB.init() ;
             QueryEngineTDB.register() ;
             UpdateEngineTDB.register() ;
-            MappingRegistry.addPrefixMapping(TDB.tdbSymbolPrefix, TDB.tdbParamNS) ;
 
             wireIntoExecution() ;
             JenaSystem.logLifecycle("TDB.init - finish") ;

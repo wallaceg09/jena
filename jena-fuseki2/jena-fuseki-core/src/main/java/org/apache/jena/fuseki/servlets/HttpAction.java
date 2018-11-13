@@ -18,8 +18,9 @@
 
 package org.apache.jena.fuseki.servlets;
 
-import static org.apache.jena.query.ReadWrite.READ ;
-import static org.apache.jena.query.ReadWrite.WRITE ;
+import static org.apache.jena.query.TxnType.READ;
+import static org.apache.jena.query.TxnType.READ_PROMOTE;
+import static org.apache.jena.query.TxnType.WRITE;
 
 import java.util.HashMap ;
 import java.util.Map ;
@@ -31,17 +32,18 @@ import org.apache.jena.atlas.logging.Log ;
 import org.apache.jena.fuseki.Fuseki ;
 import org.apache.jena.fuseki.FusekiException ;
 import org.apache.jena.fuseki.server.* ;
-import org.apache.jena.query.ReadWrite ;
+import org.apache.jena.query.TxnType;
 import org.apache.jena.sparql.SystemARQ ;
 import org.apache.jena.sparql.core.DatasetGraph ;
 import org.apache.jena.sparql.core.DatasetGraphWrapper ;
 import org.apache.jena.sparql.core.Transactional ;
 import org.apache.jena.sparql.core.TransactionalLock ;
+import org.apache.jena.sparql.util.Context;
 import org.slf4j.Logger ;
 
 /**
  * HTTP action that represents the user request lifecycle. Its state is handled in the
- * {@link ActionSPARQL#executeAction(HttpAction)} method.
+ * {@link ActionService#executeAction(HttpAction)} method.
  */
 public class HttpAction
 {
@@ -60,7 +62,6 @@ public class HttpAction
     private Transactional   transactional   = null ;
     private boolean         isTransactional = false ;
     private DatasetGraph    activeDSG       = null ;        // Set when inside begin/end.
-    private ReadWrite       activeMode      = null ;        // Set when inside begin/end.
     
     // -- Valid only for administration actions.
     
@@ -70,6 +71,7 @@ public class HttpAction
     private DataService dataService         = null ;
     private String datasetName              = null ;        // Dataset URI used (e.g. registry)
     private DatasetGraph dsg                = null ;
+    private Context context                 = null ;
 
     // ----
     
@@ -82,8 +84,8 @@ public class HttpAction
     // Outcome.
     public int statusCode = -1 ;
     public String message = null ;
-    public int contentLength = -1 ;
-    public String contentType = null ;
+    public int responseContentLength = -1 ;
+    public String responseContentType = null ;
     
     // Cleared to archive:
     public Map <String, String> headers = new HashMap<>() ;
@@ -91,7 +93,8 @@ public class HttpAction
     public HttpServletResponseTracker response ;
     private final String actionURI ;
     private final String contextPath ;
-    // Currently, global.
+
+    private final ServiceDispatchRegistry serviceDispatchRegistry;
     private final DataAccessPointRegistry dataAccessPointRegistry ;
     
     /**
@@ -101,18 +104,18 @@ public class HttpAction
      * @param log Logger for this action 
      * @param request HTTP request
      * @param response HTTP response
-     * @param verbose verbose flag
      */
-    public HttpAction(long id, Logger log, HttpServletRequest request, HttpServletResponse response, boolean verbose) {
+    public HttpAction(long id, Logger log, HttpServletRequest request, HttpServletResponse response) {
         this.id = id ;
         this.log = log ;
         this.request = request ;
         this.response = new HttpServletResponseTracker(this, response) ;
         // Should this be set when setDataset is called from the dataset context?
         // Currently server-wide, e.g. from the command line.
-        this.verbose = verbose ;
+        this.verbose = Fuseki.getVerbose(request.getServletContext()); 
         this.contextPath = request.getServletContext().getContextPath() ;
         this.actionURI = ActionLib.actionURI(request) ;
+        this.serviceDispatchRegistry = ServiceDispatchRegistry.get(request.getServletContext()) ;
         this.dataAccessPointRegistry = DataAccessPointRegistry.get(request.getServletContext()) ;
     }
 
@@ -143,6 +146,16 @@ public class HttpAction
         setDataset(dService.getDataset()) ;
     }
     
+    public void setControlRequest(DataAccessPoint dataAccessPoint, String datasetUri) {
+        this.dataAccessPoint = dataAccessPoint ;
+        this.dataService = null ;
+        if ( dataAccessPoint != null )
+            this.dataService = dataAccessPoint.getDataService() ;
+        this.datasetName = datasetUri ;
+        if ( dataService != null )
+            setDataset(dataAccessPoint.getDataService().getDataset()) ; 
+    }
+
     /** Minimum initialization using just a dataset.
      * <p>
      * the HTTP Action will change its transactional state and
@@ -154,6 +167,7 @@ public class HttpAction
      */
     private void setDataset(DatasetGraph dsg) {
         this.dsg = dsg ;
+        this.context = Context.mergeCopy(Fuseki.getContext(), dsg.getContext());
         if ( dsg == null )
             return ;
         setTransactionalPolicy(dsg) ;
@@ -180,16 +194,11 @@ public class HttpAction
         return dsg ;
     }
 
-    public void setControlRequest(DataAccessPoint dataAccessPoint, String datasetUri) {
-        this.dataAccessPoint = dataAccessPoint ;
-        this.dataService = null ;
-        if ( dataAccessPoint != null )
-            this.dataService = dataAccessPoint.getDataService() ;
-        this.datasetName = datasetUri ;
-        if ( dataService != null )
-            setDataset(dataAccessPoint.getDataService().getDataset()) ; 
+    /** Return the Context for this {@code HttpAction}. */
+    public Context getContext() {
+        return context ;
     }
-    
+
     /**
      * Return the "Transactional" for this HttpAction.
      */
@@ -227,6 +236,13 @@ public class HttpAction
     }
     
     /**
+     * Get the ServiceRegistry for this action
+     */
+    public ServiceDispatchRegistry getServiceDispatchRegistry() {
+        return serviceDispatchRegistry ;
+    }
+
+    /**
      * Get the DataAccessPointRegistry for this action
      */
     public DataAccessPointRegistry getDataAccessPointRegistry() {
@@ -254,30 +270,51 @@ public class HttpAction
         return isTransactional ;
     }
 
-    public void beginRead() {
-        activeMode = READ ;
-        transactional.begin(READ) ;
+    public void begin(TxnType txnType) {
+        transactional.begin(txnType);
         activeDSG = dsg ;
-        dataService.startTxn(READ) ;
+        dataService.startTxn(txnType) ;
+    }
+    
+    public void begin() {
+        begin(READ_PROMOTE);
+    }
+
+    public void beginWrite() {
+        begin(WRITE);
+    }
+
+    public void beginRead() {
+        begin(READ);
     }
 
     public void endRead() {
-        dataService.finishTxn(READ) ;
-        activeMode = null ;
+        dataService.finishTxn() ;
+        transactional.commit();
         transactional.end() ;
         activeDSG = null ;
     }
 
-    public void beginWrite() {
-        transactional.begin(WRITE) ;
-        activeMode = WRITE ;
-        activeDSG = dsg ;
-        dataService.startTxn(WRITE) ;
+    public void end() {
+        dataService.finishTxn() ;
+        
+        if ( transactional.isInTransaction() ) {
+            Log.warn(this, "Transaction still active - no commit or abort seen (forced abort)") ;
+            try {
+                transactional.abort() ;
+            } catch (RuntimeException ex) {
+                Log.warn(this, "Exception in forced abort (trying to continue)", ex) ;
+            }
+        }
+        if ( transactional.isInTransaction() )
+            transactional.end() ;
+        activeDSG = null ;
     }
 
     public void commit() {
+        dataService.finishTxn() ;
         transactional.commit() ;
-        activeDSG = null ;
+        end();
     }
 
     public void abort() {
@@ -289,27 +326,10 @@ public class HttpAction
             // we try to continue server operation.
             Log.warn(this, "Exception during abort (operation attempts to continue): "+ex.getMessage()) ; 
         }
-        activeDSG = null ;
+        end();
     }
 
-    public void endWrite() {
-        dataService.finishTxn(WRITE) ;
-        activeMode = null ;
-
-        if ( transactional.isInTransaction() ) {
-            Log.warn(this, "Transaction still active in endWriter - no commit or abort seen (forced abort)") ;
-            try {
-                transactional.abort() ;
-            } catch (RuntimeException ex) {
-                Log.warn(this, "Exception in forced abort (trying to continue)", ex) ;
-            }
-        }
-        transactional.end() ;
-        activeDSG = null ;
-    }
-
-    public final void startRequest()
-    { 
+    public final void startRequest() { 
         if ( dataAccessPoint != null ) 
             dataAccessPoint.startRequest(this) ;
     }

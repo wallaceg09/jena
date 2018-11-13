@@ -41,7 +41,7 @@ import org.apache.jena.update.UpdateRequest;
  * Implement of {@link RDFConnection} over a {@link Dataset} in the same JVM.
  * <p>
  * Multiple levels of {@link Isolation} are provided, The default {@code COPY} level makes a local
- * {@link RDFConnection} behave like a remote conenction. This should be the normal use in
+ * {@link RDFConnection} behave like a remote connection. This should be the normal use in
  * testing.
  * <ul>
  * <li>{@code COPY} &ndash; {@code Model}s and {@code Dataset}s are copied. 
@@ -70,7 +70,8 @@ public class RDFConnectionLocal implements RDFConnection {
     @Override
     public QueryExecution query(Query query) {
         checkOpen();
-        return Txn.calculateRead(dataset, ()->QueryExecutionFactory.create(query, dataset));
+        // There is no point doing this in a transaction because the QueryExecution is passed out. 
+        return QueryExecutionFactory.create(query, dataset);
     }
 
     @Override
@@ -104,12 +105,6 @@ public class RDFConnectionLocal implements RDFConnection {
     public void load(Model model) { 
         load(null, model);
     }
-
-    /**
-     * There may be differences between local and remote behaviour. A local
-     * connection may return direct references to a dataset so updates on
-     * returned
-     */
 
     @Override
     public Model fetch(String graph) {
@@ -156,7 +151,7 @@ public class RDFConnectionLocal implements RDFConnection {
     public void delete(String graph) {
         checkOpen();
         Txn.executeWrite(dataset,() ->{
-            if ( RDFConn.isDefault(graph) ) 
+            if ( LibRDFConn.isDefault(graph) ) 
                 dataset.getDefaultModel().removeAll();
             else 
                 dataset.removeNamedModel(graph);
@@ -175,7 +170,7 @@ public class RDFConnectionLocal implements RDFConnection {
         
         Txn.executeWrite(dataset,() ->{
             if ( RDFLanguages.isTriples(lang) ) {
-                Model model = RDFConn.isDefault(graph) ? dataset.getDefaultModel() : dataset.getNamedModel(graph);
+                Model model = LibRDFConn.isDefault(graph) ? dataset.getDefaultModel() : dataset.getNamedModel(graph);
                 if ( replace )
                     model.removeAll();
                 RDFDataMgr.read(model, file); 
@@ -235,7 +230,7 @@ public class RDFConnectionLocal implements RDFConnection {
     }
 
     private Model modelFor(String graph) {
-        if ( RDFConn.isDefault(graph)) 
+        if ( LibRDFConn.isDefault(graph)) 
             return dataset.getDefaultModel();
         return dataset.getNamedModel(graph);
     }
@@ -292,21 +287,15 @@ public class RDFConnectionLocal implements RDFConnection {
             throw new ARQException("closed");
     }
 
-    @Override
-    public void begin(ReadWrite readWrite)  { dataset.begin(readWrite); }
-
-    @Override
-    public void commit()                    { dataset.commit(); }
-
-    @Override
-    public void abort()                     { dataset.abort(); }
-
-    @Override
-    public boolean isInTransaction()        { return dataset.isInTransaction(); }
-
-    @Override
-    public void end()                       { dataset.end(); }
-    
-   
+    @Override public void begin()                       { dataset.begin(); }
+    @Override public void begin(TxnType txnType)        { dataset.begin(txnType); }
+    @Override public void begin(ReadWrite mode)         { dataset.begin(mode); }
+    @Override public boolean promote(Promote promote)   { return dataset.promote(promote); }
+    @Override public void commit()                      { dataset.commit(); }
+    @Override public void abort()                       { dataset.abort(); }
+    @Override public boolean isInTransaction()          { return dataset.isInTransaction(); }
+    @Override public void end()                         { dataset.end(); }
+    @Override public ReadWrite transactionMode()        { return dataset.transactionMode(); }
+    @Override public TxnType transactionType()          { return dataset.transactionType(); }
 }
 

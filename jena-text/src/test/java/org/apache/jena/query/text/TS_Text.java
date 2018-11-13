@@ -18,16 +18,17 @@
 
 package org.apache.jena.query.text;
 
-import org.apache.jena.query.text.assembler.TestEntityMapAssembler ;
-import org.apache.jena.query.text.assembler.TestTextDatasetAssembler ;
-import org.apache.jena.query.text.assembler.TestTextIndexLuceneAssembler ;
-import org.apache.jena.query.text.assembler.TestTextIndexSolrAssembler ;
-import org.junit.runner.RunWith ;
-import org.junit.runners.Suite ;
-import org.junit.runners.Suite.SuiteClasses ;
+import org.apache.jena.query.text.assembler.TestEntityMapAssembler;
+import org.apache.jena.query.text.assembler.TestTextDatasetAssembler;
+import org.apache.jena.query.text.assembler.TestTextIndexLuceneAssembler;
+import org.apache.jena.query.text.assembler.TestGenericAnalyzerAssembler;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
 
 @RunWith(Suite.class)
 @SuiteClasses({
+
     TestBuildTextDataset.class
     , TestDatasetWithLuceneTextIndex.class
     , TestDatasetWithLuceneMultilingualTextIndex.class
@@ -35,15 +36,15 @@ import org.junit.runners.Suite.SuiteClasses ;
     , TestDatasetWithLuceneGraphTextIndex.class
     , TestDatasetWithLuceneTextIndexDeletionSupport.class
     , TestDatasetWithLuceneStoredLiterals.class
-
-    // Embedded solr not supported
-    //, TestDatasetWithEmbeddedSolrTextIndex.class
+    
+    , TestTextNonTxn.class
+    , TestTextTxn.class
+    , TestTextNonTxnTDB1.class
+    , TestTextTxnTDB.class
 
     , TestEntityMapAssembler.class
     , TestTextDatasetAssembler.class
     , TestTextIndexLuceneAssembler.class
-    , TestTextIndexSolrAssembler.class
-    , TestTextTDB.class
     , TestDatasetWithSimpleAnalyzer.class
     , TestDatasetWithStandardAnalyzer.class
     , TestDatasetWithKeywordAnalyzer.class
@@ -53,7 +54,13 @@ import org.junit.runners.Suite.SuiteClasses ;
     , TestDatasetWithConfigurableAnalyzer.class
     , TestDatasetWithAnalyzingQueryParser.class
     , TestDatasetWithComplexPhraseQueryParser.class
+    , TestGenericAnalyzerAssembler.class
+    , TestTextGraphIndexExtra.class
+    , TestTextGraphIndexExtra2.class
+    , TestTextHighlighting.class
+    , TestTextDefineAnalyzers.class
+    , TestTextMultilingualEnhancements.class
 })
 
 public class TS_Text
-{ }
+{}

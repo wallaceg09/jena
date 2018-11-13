@@ -67,6 +67,13 @@ public class ARQConstants
     /** XML Schema namespace */
     public static final String XML_SCHEMA_NS = "http://www.w3.org/2001/XMLSchema#" ;
     
+    /** The URI prefix that triggers JavaScript functions */
+    public static final String JavaScriptURI = "http://jena.apache.org/ARQ/jsFunction#" ;
+    
+    /** Function called when JavaScript is initialized. */ 
+    public static final String JavaScriptInitFunction = "arqJSinit";
+
+    /** URI scheme that triggers the loader to load a java class */ 
     public static final String javaClassURIScheme = "java:" ;
     
     /** The ARQ function library URI space */
@@ -110,7 +117,9 @@ public class ARQConstants
         globalPrefixMap.setNsPrefix("rdfs", rdfsPrefix) ;
         globalPrefixMap.setNsPrefix("xsd",  xsdPrefix) ;
         globalPrefixMap.setNsPrefix("owl" , owlPrefix) ;
-        globalPrefixMap.setNsPrefix("fn" ,  fnPrefix) ; 
+        globalPrefixMap.setNsPrefix("fn" ,  fnPrefix) ;
+        // Treat op: as fn: (op: has no namespace in XSD F&O).
+        globalPrefixMap.setNsPrefix("op" ,  fnPrefix) ;
         globalPrefixMap.setNsPrefix("math" ,  mathPrefix) ;
         globalPrefixMap.setNsPrefix("afn",  ARQFunctionLibraryURI) ;
         globalPrefixMap.setNsPrefix("apf",  ARQPropertyFunctionLibraryURI) ;

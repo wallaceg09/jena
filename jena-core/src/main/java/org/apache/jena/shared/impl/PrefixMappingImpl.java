@@ -22,11 +22,12 @@ import java.util.ArrayList ;
 import java.util.List ;
 import java.util.Map ;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.jena.ext.xerces.util.XMLChar;
 import org.apache.jena.rdf.model.impl.Util ;
 import org.apache.jena.shared.PrefixMapping ;
 import org.apache.jena.util.CollectionFactory ;
-import org.apache.xerces.util.XMLChar;
 
 /**
     An implementation of PrefixMapping. The mappings are stored in a pair
@@ -34,15 +35,22 @@ import org.apache.xerces.util.XMLChar;
     xerces's XMLChar.isValidNCName() predicate.
 */
 public class PrefixMappingImpl implements PrefixMapping
+    // See also PrefixMappingBase, PrefixMappingMem
+    // in org.apache.jena.sparql.graph
+    // for a different implementation  
+
+
     {
-    protected Map<String, String> prefixToURI;
-    protected Map<String, String> URItoPrefix;
-    protected boolean locked;
+    private Map<String, String> prefixToURI;
+    private Map<String, String> URItoPrefix;
+    private boolean locked;
     
     public PrefixMappingImpl()
         { 
-        prefixToURI = CollectionFactory.createHashedMap();
-        URItoPrefix = CollectionFactory.createHashedMap(); 
+        // ConcurrentHashMaps protects against breaking each datastructure
+        // but does not protect against inconsistency.
+        prefixToURI = new ConcurrentHashMap<>();
+        URItoPrefix = new ConcurrentHashMap<>(); 
         }
     
     protected void set(String prefix, String uri) {

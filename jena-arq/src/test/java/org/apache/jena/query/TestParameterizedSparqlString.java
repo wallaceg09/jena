@@ -18,15 +18,17 @@
 
 package org.apache.jena.query;
 
+import java.util.ArrayList;
 import java.util.Calendar ;
+import java.util.HashMap;
 import java.util.Iterator ;
+import java.util.List;
 import java.util.TimeZone ;
-
-import org.apache.jena.datatypes.TypeMapper ;
+import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.graph.Node ;
 import org.apache.jena.graph.NodeFactory ;
-import org.apache.jena.iri.IRIFactory ;
 import org.apache.jena.rdf.model.* ;
+import org.apache.jena.riot.system.IRIResolver;
 import org.apache.jena.shared.impl.PrefixMappingImpl ;
 import org.apache.jena.sparql.ARQException ;
 import org.apache.jena.sparql.syntax.Element ;
@@ -245,7 +247,7 @@ public class TestParameterizedSparqlString {
         bnode.addProperty(RDF.type, OWL.Thing);
         Assert.assertEquals(1, model.size());
 
-        Dataset ds = DatasetFactory.create(model);
+        Dataset ds = DatasetFactory.wrap(model);
 
         // Use a parameterized query to check the data can be found
         ParameterizedSparqlString pq = new ParameterizedSparqlString();
@@ -1129,7 +1131,7 @@ public class TestParameterizedSparqlString {
         query.append("SELECT *");
         query.append('\n');
         query.append("WHERE { ?s ");
-        query.appendIri(IRIFactory.iriImplementation().construct("http://example.org"));
+        query.appendIri(IRIResolver.iriFactory().construct("http://example.org"));
         query.append(" ?o }");
 
         test(query, new String[] { "SELECT", "*", "\n", "WHERE", "?s", "<http://example.org>", "?o" }, new String[] {});
@@ -1382,7 +1384,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri("var2", "hello> } ; DROP ALL ; INSERT DATA { <s> <p> <goodbye>");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1393,7 +1395,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri("var2", "hello> } ; DROP ALL ; INSERT DATA { <s> <p> <goodbye");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1416,7 +1418,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri("var2", "hello> . ?s ?p ?o");
 
-        Query q = pss.asQuery();
+        pss.asQuery();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1449,7 +1451,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral("var", "hello' . } ; DROP ALL ; INSERT DATA { <s> <p> \"goodbye");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1461,7 +1463,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral("var", " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1474,7 +1476,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral("var", "' . } ; DROP ALL ; INSERT DATA { <s> <p> <o> }#");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1514,7 +1516,7 @@ public class TestParameterizedSparqlString {
         pss.setLiteral(first, "?" + second);
         pss.setLiteral(second, " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1527,7 +1529,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral("var", " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1540,7 +1542,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral("var", " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1588,10 +1590,10 @@ public class TestParameterizedSparqlString {
         pss.setLiteral(first, " ?" + second + " ");
         pss.setLiteral(second, " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
-
+    
     @Test
     public void test_param_string_non_injection_01() {
         // This test checks that a legitimate injection of a literal to a
@@ -1603,6 +1605,52 @@ public class TestParameterizedSparqlString {
 
         pss.toString();
     }
+    
+    @Test
+    public void test_param_string_non_injection_02() {
+        String prefixes="PREFIX : <http://purl.bdrc.io/ontology/core/>\n" +
+                " PREFIX skos: <http://www.w3.org/2004/02/skos/core#>\n" +
+                " PREFIX text: <http://jena.apache.org/text#>" ;
+        HashMap<String,String> map=new HashMap<>();
+        map.put("L_name", "\"rgyud bla ma\"");
+        map.put("LG_name", "bo-x-ewts");        
+        String test1=prefixes+ "select ?comment (GROUP_CONCAT(DISTINCT ?comment_type;  SEPARATOR=\" <>" +
+                "\") AS ?comment_types)  ?root_name\n" +
+                "where {\n" +
+                "    (?root ?score ?root_name) text:query ?L_name .\n" +
+                "    ?comment :workIsAbout ?root;\n" +
+                "             :workGenre ?g .\n" +
+                "    ?g skos:prefLabel ?comment_type .\n" +
+                "}\n"+
+                "group by ?comment ?root_name";              
+        ParameterizedSparqlString queryStr = new ParameterizedSparqlString(test1);
+        queryStr.setLiteral("L_name", map.get("L_name"),map.get("LG_name"));        
+        queryStr.asQuery();
+    }
+    
+    
+    @Test
+    public void test_param_string_non_injection_03() {
+        String prefixes="PREFIX : <http://purl.bdrc.io/ontology/core/>\n" +
+                " PREFIX skos: <http://www.w3.org/2004/02/skos/core#>\n" +
+                " PREFIX text: <http://jena.apache.org/text#>\n" ;
+        HashMap<String,String> map=new HashMap<>();
+        map.put("L_name", "\"rgyud bla ma\"");
+        map.put("LG_name", "bo-x-ewts");
+        String test2=prefixes+ "select ?comment (GROUP_CONCAT(DISTINCT ?comment_type;  SEPARATOR=\" <>" +
+                "\") AS ?comment_types)  ?root_name\n" +
+                "where {\n" +
+                "    (?root ?score ?root_name) text:query ?L_name .\n" +
+                "    ?comment :workIsAbout ?root;\n" +
+                "             :workGenre ?g .\n" +
+                "    ?g skos:prefLabel ?comment_type .\n" +
+                "    FILTER (contains(?comment_type, \"commentary\" ))\n" +
+                "}\n" +
+                "group by ?comment ?root_name";
+        ParameterizedSparqlString queryStr2 = new ParameterizedSparqlString(test2);
+        queryStr2.setLiteral("L_name", map.get("L_name"),map.get("LG_name"));
+        queryStr2.asQuery();
+    }
 
     @Test(expected = ARQException.class)
     public void test_param_string_positional_injection_01() {
@@ -1611,7 +1659,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri(0, "hello> } ; DROP ALL ; INSERT DATA { <s> <p> <goodbye>");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1622,7 +1670,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri(0, "hello> } ; DROP ALL ; INSERT DATA { <s> <p> <goodbye");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1645,7 +1693,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setIri(0, "hello> . ?s ?p ?o");
 
-        Query q = pss.asQuery();
+        pss.asQuery();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1762,7 +1810,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral(0, " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1775,7 +1823,7 @@ public class TestParameterizedSparqlString {
         ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
         pss.setLiteral(0, " . } ; DROP ALL ; INSERT DATA { <s> <p> ");
 
-        UpdateRequest updates = pss.asUpdate();
+        pss.asUpdate();
         Assert.fail("Attempt to do SPARQL injection should result in an exception");
     }
 
@@ -1878,4 +1926,313 @@ public class TestParameterizedSparqlString {
 
         pss.toString();
     }
+    
+    @Test
+    public void test_set_values_item() {
+        // Tests a single value being added - always adding parenthesis.
+        String str = "SELECT * WHERE { VALUES ?o {?objs} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues("objs", ResourceFactory.createPlainLiteral("test"));
+
+        String exp = "SELECT * WHERE { VALUES ?o {(\"test\")} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_item2() {
+        // Tests a single value being added using '$' variable syntax - always adding parenthesis.
+        String str = "SELECT * WHERE { VALUES $o {$objs} $s $p $o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues("objs", ResourceFactory.createPlainLiteral("test"));
+
+        String exp = "SELECT * WHERE { VALUES $o {(\"test\")} $s $p $o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_item_missing_values() {
+        // VALUES keyword missing so query is unchanged.
+        String str = "SELECT * WHERE { ?o {?objs} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues("objs", ResourceFactory.createPlainLiteral("test"));
+
+        String exp = "SELECT * WHERE { ?o {?objs} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_item_missing_braces() {
+        // Braces missing so query is unchanged.
+        String str = "SELECT * WHERE { VALUES ?o ?objs ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues("objs", ResourceFactory.createPlainLiteral("test"));
+
+        String exp = "SELECT * WHERE { VALUES ?o ?objs ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_item_missing_valueName() {
+        // valueName missing ('props' instead of 'objs') so query is unchanged.
+        String str = "SELECT * WHERE { VALUES ?o {?objs} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues("props", ResourceFactory.createPlainLiteral("test"));
+
+        String exp = "SELECT * WHERE { VALUES ?o {?objs} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_items_parenthesis() {
+        // Tests two values for same variable.
+        String str = "SELECT * WHERE { VALUES (?o) {?objs} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        List<RDFNode> objs = new ArrayList<>();
+        objs.add(ResourceFactory.createPlainLiteral("obj_A"));
+        objs.add(ResourceFactory.createPlainLiteral("obj_B"));
+        pss.setValues("objs", objs);
+
+        String exp = "SELECT * WHERE { VALUES (?o) {(\"obj_A\") (\"obj_B\")} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_multiple_variables() {
+        // Tests two values for same variable.
+        String str = "SELECT * WHERE { VALUES (?p ?o) {?vars} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        List<RDFNode> vars = new ArrayList<>();
+        vars.add(ResourceFactory.createProperty("http://example.org/prop_A"));
+        vars.add(ResourceFactory.createPlainLiteral("obj_A"));
+        pss.setValues("vars", vars);
+
+        String exp = "SELECT * WHERE { VALUES (?p ?o) {(<http://example.org/prop_A> \"obj_A\")} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test(expected = ARQException.class)
+    public void test_set_values_multiple_variables_too_few() {
+        // Test of one value for two variables.
+        String str = "SELECT * WHERE { VALUES (?p ?o) {?vars} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        List<RDFNode> vars = new ArrayList<>();
+        vars.add(ResourceFactory.createProperty("http://example.org/prop_A"));
+        pss.setValues("vars", vars);
+
+        pss.toString();
+        Assert.fail("Attempt to insert incorrect number of values.");
+    }
+
+    @Test(expected = ARQException.class)
+    public void test_set_values_multiple_variables_too_many() {
+        // Test of three values for two variables.
+        String str = "SELECT * WHERE { VALUES (?p ?o) {?vars} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        List<RDFNode> vars = new ArrayList<>();
+        vars.add(ResourceFactory.createProperty("http://example.org/prop_A"));
+        vars.add(ResourceFactory.createPlainLiteral("obj_A"));
+        vars.add(ResourceFactory.createPlainLiteral("obj_A"));
+        pss.setValues("vars", vars);
+
+        pss.toString();
+        Assert.fail("Attempt to insert incorrect number of values.");
+    }
+
+    @Test
+    public void test_set_values_multi_var() {
+        // Tests two variables - always adding parenthesis.
+        String str = "SELECT * WHERE { VALUES ?p {?props} VALUES ?o {?objs} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        List<RDFNode> objs = new ArrayList<>();
+        objs.add(ResourceFactory.createPlainLiteral("obj_A"));
+        objs.add(ResourceFactory.createPlainLiteral("obj_B"));
+        pss.setValues("objs", objs);
+
+        List<RDFNode> props = new ArrayList<>();
+        props.add(ResourceFactory.createProperty("http://example.org/prop_A"));
+        props.add(ResourceFactory.createProperty("http://example.org/prop_B"));
+        pss.setValues("props", props);
+
+        String exp = "SELECT * WHERE { VALUES ?p {(<http://example.org/prop_A>) (<http://example.org/prop_B>)} VALUES ?o {(\"obj_A\") (\"obj_B\")} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test
+    public void test_set_values_grouped_var() {
+        // Tests two variables with parenthesis for one.
+        String str = "SELECT * WHERE { VALUES (?p ?o) {?vars} ?s ?p ?o }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+
+        List<List<? extends RDFNode>> vars = new ArrayList<>();
+        List<RDFNode> objsA = new ArrayList<>();
+        objsA.add(ResourceFactory.createProperty("http://example.org/prop_A"));
+        objsA.add(ResourceFactory.createPlainLiteral("obj_A"));
+        vars.add(objsA);
+
+        List<RDFNode> objsB = new ArrayList<>();
+        objsB.add(ResourceFactory.createProperty("http://example.org/prop_B"));
+        objsB.add(ResourceFactory.createPlainLiteral("obj_B"));
+        vars.add(objsB);
+
+        pss.setRowValues("vars", vars);
+
+        String exp = "SELECT * WHERE { VALUES (?p ?o) {(<http://example.org/prop_A> \"obj_A\") (<http://example.org/prop_B> \"obj_B\")} ?s ?p ?o }";
+        String res = pss.toString();
+        //System.out.println("Exp: " + exp);
+        //System.out.println("Res: " + res);
+        Assert.assertEquals(exp, res);
+    }
+
+    @Test(expected = ARQException.class)
+    public void test_set_values_uri_injection() {
+        // This injection is prevented by forbidding the > character in URIs
+        String str = "PREFIX : <http://example/>\nSELECT * WHERE { VALUES ?obj {?objVar} <s> <p> ?obj . }";
+        ParameterizedSparqlString pss = new ParameterizedSparqlString(str);
+        pss.setValues(str, ResourceFactory.createResource("<http://example.org/obj_A>"));
+
+        pss.toString();
+        Assert.fail("Attempt to do SPARQL injection should result in an exception");
+    }
+
+    @Test
+    public void test_extract_target_vars() {
+        // Identifies the vars in the VALUES clause according to the substituting valueName.
+        String cmd = "SELECT * WHERE { VALUES ?o {?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{"o"};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_two_target_vars() {
+        // Identifies the vars in the VALUES clause according to the substituting valueName.
+        String cmd = "SELECT * WHERE { VALUES(?p ?o){?valuesName} ?s ?p ?o }";
+        String valueName = "valuesName";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{"p", "o"};
+
+        ///System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_multiple_target_vars() {
+        // Identifies the vars in the VALUES clause according to the substituting valueName.
+        String cmd = "SELECT * WHERE { VALUES ?p {?props} VALUES ?o {?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{"o"};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_target_vars_missing_target() {
+        // Missing target variable name so should return empty array.
+        String cmd = "SELECT * WHERE { VALUES ?o {} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_target_vars_missing_brace() {
+        // Missing brace so should return empty array.
+        String cmd = "SELECT * WHERE { VALUES ?o ?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_multiple_target_vars_missing_brace() {
+        // Missing brace so should return empty array.
+        String cmd = "SELECT * WHERE { VALUES ?p {?props} VALUES ?o ?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_target_vars_missing_values() {
+        // Missing VALUES keyword so should return empty array.
+        String cmd = "SELECT * WHERE { ?o {?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_multiple_target_vars_missing_values() {
+        // Missing VALUES keyword so should return empty array.
+        String cmd = "SELECT * WHERE { VALUES ?p {?props} ?o {?objs} ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
+    @Test
+    public void test_extract_multiple_target_vars_no_braces() {
+        // Missing braces and VALUES keyword so should return empty array.
+        String cmd = "SELECT * WHERE { VALUES ?p ?props ?o ?objs ?s ?p ?o }";
+        String valueName = "objs";
+        String[] res = ParameterizedSparqlString.extractTargetVars(cmd, valueName);
+        String[] exp = new String[]{};
+
+        //System.out.println("Exp: " + String.join(",", exp));
+        //System.out.println("Res: " + String.join(",", res));
+        Assert.assertArrayEquals(exp, res);
+    }
+
 }

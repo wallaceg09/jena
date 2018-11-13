@@ -18,12 +18,11 @@
 
 package org.apache.jena.sparql.util;
 
-import junit.framework.TestCase ;
 import org.apache.jena.sparql.util.DateTimeStruct ;
 import org.junit.Test ;
+import static org.junit.Assert.*;
 
-
-public class TestDateTimeParsing extends TestCase
+public class TestDateTimeParsing
 {
     @Test public void testDT_1()  { dateTimeTest("2007-08-31T12:34:56Z") ; }
     @Test public void testDT_2()  { dateTimeTest("2007-08-31T12:34:56") ; } 
@@ -197,7 +196,7 @@ public class TestDateTimeParsing extends TestCase
     private static void dateTimeTest(String str)
     {
         DateTimeStruct dt = DateTimeStruct.parseDateTime(str) ;
-        assertTrue(dt.xsdDateTime) ;
+        assertTrue(dt.isDateTime()) ;
         check(dt) ;
         assertEquals(str, dt.toString()) ;
     }
@@ -214,7 +213,8 @@ public class TestDateTimeParsing extends TestCase
     private static void dateTest(String str)
     {
         DateTimeStruct dt = DateTimeStruct.parseDate(str) ;
-        assertFalse(dt.xsdDateTime) ;
+        assertTrue(dt.isDate()) ;
+        assertFalse(dt.isDateTime()) ;
         check(dt) ;
         assertEquals(str, dt.toString()) ;
     }
@@ -242,7 +242,7 @@ public class TestDateTimeParsing extends TestCase
         if ( dt.day != null )
             assertEquals(2, dt.day.length()) ;
         
-        if ( dt.xsdDateTime )
+        if ( dt.isDateTime() )
         {
             assertNotNull(dt.hour) ;
             assertEquals(2, dt.hour.length()) ;

@@ -74,7 +74,14 @@ public interface RDFConnection extends
     
 
     // ---- SparqlQueryConnection
-
+    // Where the argument is a query string, this code avoid simply parsing it and calling
+    // the Query object form. This allows RDFConnectionRemote to pass the query string
+    // untouched to the connection depending in the internal setting to parse/check
+    // queries.
+    // Java9 introduces private methods for interfaces which could clear the duplication up by passing in a Creator<QueryExecution>. 
+    // Alternatively, RDFConnectionBase with protected query(String, Query)
+    // See RDFConnectionRemote
+    
     /**
      * Execute a SELECT query and process the ResultSet with the handler code.  
      * @param query
@@ -82,7 +89,12 @@ public interface RDFConnection extends
      */
     @Override
     public default void queryResultSet(String query, Consumer<ResultSet> resultSetAction) {
-        queryResultSet(QueryFactory.create(query), resultSetAction);
+        Txn.executeRead(this, ()->{ 
+            try ( QueryExecution qExec = query(query) ) {
+                ResultSet rs = qExec.execSelect();
+                resultSetAction.accept(rs);
+            }
+        } );
     }
     
     /**
@@ -94,7 +106,6 @@ public interface RDFConnection extends
     public default void queryResultSet(Query query, Consumer<ResultSet> resultSetAction) {
         if ( ! query.isSelectType() )
             throw new JenaConnectionException("Query is not a SELECT query");
-
         Txn.executeRead(this, ()->{ 
             try ( QueryExecution qExec = query(query) ) {
                 ResultSet rs = qExec.execSelect();
@@ -110,7 +121,11 @@ public interface RDFConnection extends
      */
     @Override
     public default void querySelect(String query, Consumer<QuerySolution> rowAction) {
-        querySelect(QueryFactory.create(query), rowAction);
+        Txn.executeRead(this, ()->{ 
+            try ( QueryExecution qExec = query(query) ) {
+                qExec.execSelect().forEachRemaining(rowAction);
+            }
+        } ); 
     }
     
     /**
@@ -132,7 +147,12 @@ public interface RDFConnection extends
     /** Execute a CONSTRUCT query and return as a Model */
     @Override
     public default Model queryConstruct(String query) {
-        return queryConstruct(QueryFactory.create(query));
+        return 
+            Txn.calculateRead(this, ()->{ 
+                try ( QueryExecution qExec = query(query) ) {
+                    return qExec.execConstruct();
+                }
+            } ); 
     }
     
     /** Execute a CONSTRUCT query and return as a Model */
@@ -149,7 +169,12 @@ public interface RDFConnection extends
     /** Execute a DESCRIBE query and return as a Model */
     @Override
     public default Model queryDescribe(String query) {
-        return queryDescribe(QueryFactory.create(query));
+        return 
+            Txn.calculateRead(this, ()->{ 
+                try ( QueryExecution qExec = query(query) ) {
+                    return qExec.execDescribe();
+                }
+            } );
     }
     
     /** Execute a DESCRIBE query and return as a Model */
@@ -160,13 +185,18 @@ public interface RDFConnection extends
                 try ( QueryExecution qExec = query(query) ) {
                     return qExec.execDescribe();
                 }
-            } ); 
+            } );
     }
     
     /** Execute a ASK query and return a boolean */
     @Override
     public default boolean queryAsk(String query) {
-        return queryAsk(QueryFactory.create(query));
+        return 
+            Txn.calculateRead(this, ()->{ 
+                try ( QueryExecution qExec = query(query) ) {
+                    return qExec.execAsk();
+                }
+            } );
     }
 
     /** Execute a ASK query and return a boolean */
@@ -309,7 +339,7 @@ public interface RDFConnection extends
         
     /**
      * Delete a graph from the dataset.
-     * Null or "default" measn the default graph, which is cleared, not removed.
+     * Null or "default" means the default graph, which is cleared, not removed.
      * 
      * @param graphName
      */

@@ -35,8 +35,9 @@ import org.apache.jena.sparql.util.MappingRegistry ;
 import org.apache.jena.sparql.util.Symbol ;
 import org.apache.jena.sparql.util.TypeNotUniqueException ;
 import org.apache.jena.sparql.util.graph.GraphUtils ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
 import org.apache.jena.vocabulary.RDFS ;
+import static org.apache.jena.sparql.core.assembler.DatasetAssemblerVocab.*;
 
 public class AssemblerUtils
 {
@@ -56,9 +57,12 @@ public class AssemblerUtils
         if ( initialized )
             return ;
         initialized = true ;
-        // Wire in the extension assemblers (extensions relative to the Jena assembler framework)
-        registerDataset(DatasetAssembler.getType(),         new DatasetAssembler()) ;
-        registerDataset(InMemDatasetAssembler.getType(),    new InMemDatasetAssembler()) ;
+        registerDataset(tDataset,         new DatasetAssembler()) ;
+        registerDataset(tDatasetOne,      new DatasetOneAssembler()) ;
+        registerDataset(tDatasetZero,     new DatasetNullAssembler(tDatasetZero)) ;
+        registerDataset(tDatasetSink,     new DatasetNullAssembler(tDatasetSink)) ;
+        registerDataset(tMemoryDataset,   new InMemDatasetAssembler()) ;
+        registerDataset(tDatasetTxnMem,   new InMemDatasetAssembler()) ;
     }
     
     private static Model modelExtras = ModelFactory.createDefaultModel() ;
@@ -76,8 +80,11 @@ public class AssemblerUtils
     /** Register an addition assembler */  
     static public void register(AssemblerGroup g, Resource r, Assembler a, Resource superType) {
         registerAssembler(g, r, a) ;
-        if ( superType != null && ! superType.equals(r) ) 
-            modelExtras.add(r, RDFS.subClassOf, superType) ;
+        if ( superType != null && ! superType.equals(r) ) {
+            // This is called during Jena-wide initialization.
+            // Use function for constant (JENA-1294)
+           modelExtras.add(r, RDFS.Init.subClassOf(), superType) ;
+        }
     }
     
     /** register */ 
@@ -112,10 +119,10 @@ public class AssemblerUtils
         try {
             root = GraphUtils.findRootByType(spec, type) ;
             if ( root == null )
-                return null ;
+                throw new ARQException("No such type: <"+type+">");
             
         } catch (TypeNotUniqueException ex)
-        { throw new ARQException("Multiple types for: "+DatasetAssemblerVocab.tDataset) ; }
+        { throw new ARQException("Multiple types for: "+tDataset) ; }
         return Assembler.general.open(root) ;
     }
     

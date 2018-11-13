@@ -28,12 +28,20 @@ import org.apache.jena.rdf.model.ModelFactory ;
 import org.apache.jena.rdf.model.RDFWriter ;
 import org.apache.jena.riot.Lang ;
 import org.apache.jena.riot.SysRIOT ;
+import org.apache.jena.riot.WriterGraphRIOT ;
 import org.apache.jena.riot.system.PrefixMap ;
 import org.apache.jena.riot.writer.WriterGraphRIOTBase ;
 import org.apache.jena.sparql.util.Context ;
 
-/** Wrapper for using old-style Jena RDFWriters in RIOT. */
-
+/**
+ * Adapter providing RIOT interface {@link WriterGraphRIOT} over an old-style
+ * Jena {@link RDFWriter}. Subclasses of this class are used for RDF/XML
+ * (basic and abbreviated) in RIOT.
+ * <p>
+ * See {@link RDFWriterRIOT} for the class plugged into RIOT that provides the
+ * {@link RDFWriter} interface to Jena core operations. It is {@link RDFWriter} over
+ * a {@link WriterGraphRIOT}.
+ */
 public abstract class AdapterRDFWriter extends WriterGraphRIOTBase
 {
     protected abstract RDFWriter create() ;
@@ -56,17 +64,19 @@ public abstract class AdapterRDFWriter extends WriterGraphRIOTBase
         w.write(ModelFactory.createModelForGraph(graph), out, baseURI) ;
     }
     
-    private static void setProperties(RDFWriter w, Context context) {
+    private void setProperties(RDFWriter w, Context context) {
+        if ( context == null )
+            return;
+        Map<String, Object> properties = null;
         try { 
             @SuppressWarnings("unchecked")
-            Map<String, Object> p = (Map<String, Object>)(context.get(SysRIOT.rdfWriterProperties)) ;
-            if ( p != null )
-                p.forEach((k,v) -> w.setProperty(k, v)) ;
+            Map<String, Object> p = (Map<String, Object>)(context.get(SysRIOT.sysRdfWriterProperties)) ;
+            properties = p;
         } catch (Throwable ex) {
-            Log.warn(AdapterRDFWriter.class, "Problem setting properties", ex);
+            Log.warn(this, "Problem accessing the RDF/XML writer properties: properties ignored", ex);
         }
+        if ( properties != null )
+            properties.forEach((k,v) -> w.setProperty(k, v)) ;
     }
-
-
 }
 

@@ -18,7 +18,9 @@
 
 package org.apache.jena.atlas.logging.java;
 
-import java.text.MessageFormat ;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.text.MessageFormat;
 import java.util.Date ;
 import java.util.logging.Formatter ;
 import java.util.logging.Level ;
@@ -26,7 +28,7 @@ import java.util.logging.LogManager ;
 import java.util.logging.LogRecord ;
 
 /** A pattern-driven log formatter.
- * inspired by Log4j's PatternLayout
+ * Inspired by Log4j's PatternLayout
  * Set a different output pattern with {@code .format}.
  * <p>
  * The default format is {@code "%5$tT %3$-5s %2$-20s :: %6$s\n"}.
@@ -89,6 +91,18 @@ public class TextFormatter extends Formatter
         if ( record.getParameters() != null )
             formatted$ = MessageFormat.format(formatted$, record.getParameters()) ;
         
+        String throwable = "";
+        Throwable th = record.getThrown();
+        if ( th != null ) {
+            // Avoid going via bytes because of the risk of platform character set issues.
+            StringWriter sw = new StringWriter();
+            try ( PrintWriter pw = new PrintWriter(sw) ) {
+                pw.println();
+                th.printStackTrace(pw);
+            }
+            formatted$ = formatted$ + sw.toString();
+        }
+        
         Level level = record.getLevel() ;
         String levelOutputName = levelOutputName(level) ;
         
@@ -98,7 +112,7 @@ public class TextFormatter extends Formatter
                              levelOutputName,                   // 3
                              Thread.currentThread().getName(),  // 4
                              new Date(record.getMillis()),      // 5
-                             formatted$) ;                      // 6
+                             formatted$);                       // 6
     }
 
     /** By default use slf4j name.
@@ -109,7 +123,7 @@ public class TextFormatter extends Formatter
         //    FINEST  -> TRACE
         //    FINER   -> DEBUG
         //    FINE    -> DEBUG
-        //    CONFIG  -> INFO
+        //    CONFIG  -> CONF
         //    INFO    -> INFO
         //    WARNING -> WARN
         //    SEVERE  -> ERROR
@@ -119,8 +133,8 @@ public class TextFormatter extends Formatter
             return "ERROR" ;
         if ( Level.INFO.equals(level) )
             return "INFO" ;
-        if ( Level.CONFIG.equals(level) )   // Keep name.
-            return "CONFIG" ;
+        if ( Level.CONFIG.equals(level) )   // Keep name. No equivalent in SLF4J.
+            return "CONF" ;
         if ( Level.FINE.equals(level) )
             return "DEBUG" ;
         if ( Level.FINER.equals(level) )

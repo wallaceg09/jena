@@ -24,36 +24,28 @@ import static org.apache.jena.riot.WebContent.ctHTMLForm ;
 import static org.apache.jena.riot.WebContent.ctSPARQLQuery ;
 import static org.apache.jena.riot.WebContent.isHtmlForm ;
 import static org.apache.jena.riot.WebContent.matchContentType ;
-import static org.apache.jena.riot.web.HttpNames.paramAccept ;
-import static org.apache.jena.riot.web.HttpNames.paramCallback ;
-import static org.apache.jena.riot.web.HttpNames.paramDefaultGraphURI ;
-import static org.apache.jena.riot.web.HttpNames.paramForceAccept ;
-import static org.apache.jena.riot.web.HttpNames.paramNamedGraphURI ;
-import static org.apache.jena.riot.web.HttpNames.paramOutput1 ;
-import static org.apache.jena.riot.web.HttpNames.paramOutput2 ;
-import static org.apache.jena.riot.web.HttpNames.paramQuery ;
-import static org.apache.jena.riot.web.HttpNames.paramQueryRef ;
-import static org.apache.jena.riot.web.HttpNames.paramStyleSheet ;
-import static org.apache.jena.riot.web.HttpNames.paramTimeout ;
+import static org.apache.jena.riot.web.HttpNames.*;
 
 import java.io.IOException ;
 import java.io.InputStream ;
 import java.util.* ;
+import java.util.concurrent.TimeUnit;
 
 import javax.servlet.http.HttpServletRequest ;
 import javax.servlet.http.HttpServletResponse ;
 
 import org.apache.jena.atlas.io.IO ;
 import org.apache.jena.atlas.io.IndentedLineBuffer ;
+import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.atlas.web.ContentType ;
 import org.apache.jena.fuseki.Fuseki ;
-import org.apache.jena.fuseki.FusekiException ;
-import org.apache.jena.fuseki.FusekiLib ;
+import org.apache.jena.fuseki.system.FusekiNetLib;
 import org.apache.jena.query.* ;
 import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.riot.web.HttpNames ;
 import org.apache.jena.riot.web.HttpOp ;
 import org.apache.jena.sparql.core.Prologue ;
+import org.apache.jena.sparql.engine.EngineLib;
 import org.apache.jena.sparql.resultset.SPARQLResult ;
 import org.apache.jena.web.HttpSC ;
 
@@ -64,8 +56,6 @@ import org.apache.jena.web.HttpSC ;
  */
 public abstract class SPARQL_Query extends SPARQL_Protocol
 {
-    private static final long serialVersionUID = 6670547318463759949L;
-
     private static final String QueryParseBase = Fuseki.BaseParserSPARQL ;
 
     public SPARQL_Query() {
@@ -73,9 +63,7 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
     }
 
     // Choose REST verbs to support.
-
-    // doMethod : Not used with UberServlet dispatch.
-
+    
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) {
         doCommon(request, response) ;
@@ -97,12 +85,28 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
         doOptions(action.request, action.response) ;
     }
 
-    // All the params we support
-
-    protected static List<String> allParams = Arrays.asList(paramQuery, paramDefaultGraphURI, paramNamedGraphURI,
-                                                            paramQueryRef, paramStyleSheet, paramAccept, paramOutput1,
-                                                            paramOutput2, paramCallback, paramForceAccept, paramTimeout) ;
-
+    /** All the query parameters that are acceptable in a given request.
+    *  This is comprised of, by default,
+    *  <ul>
+    *  <li>SPARQL Protocol for query ({@link #stdParams()}) as mentioned in the spec.
+    *  <li>Fuseki parameters ({@link #fusekiParams()}) e.g. timeout and formatting
+    *  <li>Any custom parameter for this particular servlet ({@link #customParams()}, usually none.
+    *  </ul>
+    *  The default implementation calculates this list of parameters once (on first use). 
+    */     
+    private Set<String> acceptedParams_ = null;
+    protected Collection<String> acceptedParams(HttpAction action) {
+        if ( acceptedParams_ == null ) {
+            synchronized(this) {
+                if ( acceptedParams_ == null )
+                    // Does not matter about race condition here because the same Set should be
+                    // created on any call to generateAcceptedParams.
+                    acceptedParams_ = generateAcceptedParams();
+            }
+        }
+        return acceptedParams_;
+    }
+    
     /**
      * Validate the request, checking HTTP method and HTTP Parameters.
      * @param action HTTP Action
@@ -124,7 +128,8 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
 
         // Use of the dataset describing parameters is check later.
         try {
-            validateParams(action, allParams) ;
+            Collection<String> x = acceptedParams(action);
+            validateParams(action, x) ;
             validateRequest(action) ;
         } catch (ActionErrorException ex) {
             throw ex ;
@@ -145,7 +150,7 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
      */
     protected void validateParams(HttpAction action, Collection<String> params) {
         HttpServletRequest request = action.request ;
-        ContentType ct = FusekiLib.getContentType(request) ;
+        ContentType ct = FusekiNetLib.getContentType(request) ;
         boolean mustHaveQueryParam = true ;
         if ( ct != null ) {
             String incoming = ct.getContentType() ;
@@ -204,7 +209,7 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
             return ;
         }
 
-        ContentType ct = FusekiLib.getContentType(action) ;
+        ContentType ct = ActionLib.getContentType(action) ;
 
         // POST application/x-www-form-url
         // POST ?query= and no Content-Type
@@ -241,8 +246,12 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
 
     protected void execute(String queryString, HttpAction action) {
         String queryStringLog = ServletOps.formatForLog(queryString) ;
-        if ( action.verbose )
-            action.log.info(format("[%d] Query = \n%s", action.id, queryString)) ;
+        if ( action.verbose ) {
+            String str = queryString;
+            if ( str.endsWith("\n") )
+                str = str.substring(0, str.length()-1);
+            action.log.info(format("[%d] Query = \n%s", action.id, str)) ;
+        }
         else
             action.log.info(format("[%d] Query = %s", action.id, queryStringLog)) ;
 
@@ -266,7 +275,7 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
         try {
             action.beginRead() ;
             Dataset dataset = decideDataset(action, query, queryStringLog) ;
-            try ( QueryExecution qExec = createQueryExecution(query, dataset) ; ) {
+            try ( QueryExecution qExec = createQueryExecution(action, query, dataset) ; ) {
                 SPARQLResult result = executeQuery(action, qExec, query, queryStringLog) ;
                 // Deals with exceptions itself.
                 sendResults(action, result, query.getPrologue()) ;
@@ -284,8 +293,8 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
     }
 
     /**
-     * Check the query - if unacceptable, throw ActionErrorException or call
-     * super.error
+     * Check the query - if unacceptable, throw ActionErrorException 
+     * or call on of the {@link ServletOps#error} operations.
      * @param action HTTP Action
      * @param query  SPARQL Query
      */
@@ -295,9 +304,21 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
      * @param query
      * @param dataset
      * @return QueryExecution
+     * @deprecated Use {@link #createQueryExecution(HttpAction, Query, Dataset)}
      */
+    @Deprecated
     protected QueryExecution createQueryExecution(Query query, Dataset dataset) {
         return QueryExecutionFactory.create(query, dataset) ;
+    }
+
+    /** Create the {@link QueryExecution} for this operation.
+     * @param action
+     * @param query
+     * @param dataset
+     * @return QueryExecution
+     */
+    protected QueryExecution createQueryExecution(HttpAction action, Query query, Dataset dataset) {
+        return createQueryExecution(query, dataset);
     }
 
     /** Perform the {@link QueryExecution} once.
@@ -308,7 +329,7 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
      * @return
      */
     protected SPARQLResult executeQuery(HttpAction action, QueryExecution queryExecution, Query query, String queryStringLog) {
-        setAnyTimeouts(queryExecution, action) ;
+        setAnyProtocolTimeouts(queryExecution, action) ;
 
         if ( query.isSelectType() ) {
             ResultSet rs = queryExecution.execSelect() ;
@@ -345,34 +366,30 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
             return new SPARQLResult(b) ;
         }
 
+        if ( query.isJsonType() )
+        {
+            Iterator<JsonObject> jsonIterator = queryExecution.execJsonItems();
+            //JsonArray jsonArray = queryExecution.execJson();
+            action.log.info(format("[%d] exec/json", action.id));
+            return new SPARQLResult(jsonIterator);
+        }
+
         ServletOps.errorBadRequest("Unknown query type - " + queryStringLog) ;
         return null ;
     }
 
-    private void setAnyTimeouts(QueryExecution qexec, HttpAction action) {
-//        if ( !(action.getDataService().allowTimeoutOverride) )
-//            return ;
-
-        long desiredTimeout = Long.MAX_VALUE ;
+    private void setAnyProtocolTimeouts(QueryExecution qExec, HttpAction action) {
+        // The timeout string in the protocol is in seconds, not milliseconds.
+        String desiredTimeoutStr = null;
         String timeoutHeader = action.request.getHeader("Timeout") ;
         String timeoutParameter = action.request.getParameter("timeout") ;
-        if ( timeoutHeader != null ) {
-            try {
-                desiredTimeout = (int)(Float.parseFloat(timeoutHeader) * 1000) ;
-            } catch (NumberFormatException e) {
-                throw new FusekiException("Timeout header must be a number", e) ;
-            }
-        } else if ( timeoutParameter != null ) {
-            try {
-                desiredTimeout = (int)(Float.parseFloat(timeoutParameter) * 1000) ;
-            } catch (NumberFormatException e) {
-                throw new FusekiException("timeout parameter must be a number", e) ;
-            }
-        }
-
-//        desiredTimeout = Math.min(action.getDataService().maximumTimeoutOverride, desiredTimeout) ;
-        if ( desiredTimeout != Long.MAX_VALUE )
-            qexec.setTimeout(desiredTimeout) ;
+        if ( timeoutHeader != null ) 
+            desiredTimeoutStr = timeoutHeader;
+        if ( timeoutParameter != null )
+            desiredTimeoutStr = timeoutParameter;
+        
+        // Merge (new timeoutw can't be greater than current settings for qExec
+        EngineLib.parseSetTimeout(qExec, desiredTimeoutStr, TimeUnit.SECONDS, true);
     }
 
     /** Choose the dataset for this SPARQL Query request.
@@ -399,6 +416,8 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
             ResponseDataset.doResponseModel(action, result.getModel());
         else if ( result.isBoolean() )
             ResponseResultSet.doResponseResultSet(action, result.getBooleanResult()) ;
+        else if ( result.isJson() )
+            ResponseJson.doResponseJson(action, result.getJsonItems()) ;
         else
             ServletOps.errorOccurred("Unknown or invalid result type") ;
     }
@@ -414,4 +433,34 @@ public abstract class SPARQL_Query extends SPARQL_Protocol
         return HttpOp.execHttpGetString(queryURI) ;
     }
 
+    // ---- Query parameters for validation
+    /** 
+     * Create the set of all parameters passed by validation.
+     * This is called once only.
+     * Override {@link acceptedParams} for a full dynamic choice.  
+     */
+    protected Set<String> generateAcceptedParams() {
+        Set<String> x  = new HashSet<>();
+        x.addAll(stdParams());
+        x.addAll(fusekiParams());
+        x.addAll(customParams());
+        return x;
+    }
+
+    private static Collection<String> customParams_ = Collections.emptyList();
+    /** Extension parameters : called once during parameter collection setup. */
+    protected Collection<String> customParams() {
+        return customParams_;
+    }
+
+    /** The parameters in the SPARQL Protocol for query */
+    private static Collection<String> stdParams_ = Arrays.asList(paramQuery, paramDefaultGraphURI, paramNamedGraphURI);
+
+    protected Collection<String> stdParams() { return stdParams_; }
+
+    /** The parameters Fuseki also provides */
+    private static Collection<String> fusekiParams_ = Arrays.asList(paramQueryRef, paramStyleSheet, paramAccept, paramOutput1,
+                                                                    paramOutput2, paramCallback, paramForceAccept, paramTimeout) ;
+
+    protected Collection<String> fusekiParams() { return fusekiParams_; }
 }

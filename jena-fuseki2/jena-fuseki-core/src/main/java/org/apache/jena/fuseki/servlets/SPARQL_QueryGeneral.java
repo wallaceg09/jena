@@ -23,7 +23,9 @@ import static java.lang.String.format ;
 import java.util.List ;
 
 import org.apache.jena.atlas.lib.InternalErrorException ;
-import org.apache.jena.fuseki.migrate.GraphLoadUtils ;
+import org.apache.jena.fuseki.server.DataService;
+import org.apache.jena.fuseki.server.Operation;
+import org.apache.jena.fuseki.system.GraphLoadUtils;
 import org.apache.jena.query.Dataset ;
 import org.apache.jena.query.DatasetFactory ;
 import org.apache.jena.query.Query ;
@@ -31,10 +33,9 @@ import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.rdf.model.ModelFactory ;
 import org.apache.jena.riot.RiotException ;
 import org.apache.jena.sparql.core.DatasetDescription ;
+import org.apache.jena.sparql.core.DatasetGraphZero;
 
 public class SPARQL_QueryGeneral extends SPARQL_Query {
-    private static final long serialVersionUID = -3322268853028371757L;
-
     final static int MaxTriples = 100 * 1000 ;
 
     public SPARQL_QueryGeneral() {
@@ -51,12 +52,25 @@ public class SPARQL_QueryGeneral extends SPARQL_Query {
     protected String mapRequestToDataset(HttpAction action) {
         return null ;
     }
+    
+    /** SPARQL_QueryGeneral is a servlet to be called directly.
+     * It declares it is own {@code Operation} to fit into {@link ActionService#execCommonWorker}.
+     * The Fuseki service handling continues; 
+     * {@link SPARQL_Query} will ask for a dataset which will return the fixed, empty dataset.
+     * 
+     */
+    @Override
+    protected Operation chooseOperation(HttpAction action, DataService dataService) {
+        return Operation.Query;
+    }
 
+    private static Dataset ds = DatasetFactory.wrap(new DatasetGraphZero());
     @Override
     protected Dataset decideDataset(HttpAction action, Query query, String queryStringLog) {
         DatasetDescription datasetDesc = getDatasetDescription(action, query) ;
         if ( datasetDesc == null )
-            ServletOps.errorBadRequest("No dataset description in protocol request or in the query string") ;
+            //ServletOps.errorBadRequest("No dataset description in protocol request or in the query string") ;
+            return ds;
         return datasetFromDescriptionWeb(action, datasetDesc) ;
     }
 

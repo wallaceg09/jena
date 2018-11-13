@@ -24,14 +24,14 @@ import org.apache.jena.atlas.io.IO ;
 import org.apache.jena.atlas.lib.Lib ;
 import org.apache.jena.atlas.logging.LogCtl ;
 import org.apache.jena.riot.thrift.BinRDF ;
-import org.apache.jena.system.JenaSystem ;
+import org.apache.jena.sys.JenaSystem ;
 
 /** Dump an rdf-thrift file to show structure */ 
 public class dumpthrift {
     static { LogCtl.setCmdLogging(); }
     static { JenaSystem.init() ; }
     
-    public static void main(String[] args) {
+    public static void main(String... args) {
         if ( args.length == 0 ) {
             args = new String[] {"-"} ;
         }
